@@ -89,7 +89,7 @@ const STATUS_META = {
   },
 };
 
-const ADMIN_PIN = "1234";
+const ADMIN_PIN = "Ypdf091001";
 const TARGET_WHATSAPP = "6282270189045";
 const TARGET_EMAIL = "yuda@pgcm.co.kr";
 const STORAGE_KEY = "eng_wo_system_active_v1";
