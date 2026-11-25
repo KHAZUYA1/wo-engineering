@@ -38,12 +38,26 @@ const DEPARTMENTS = [
 ];
 
 const CATEGORIES = [
-  "Mesin Produksi",
-  "Listrik & Panel",
-  "HVAC / AC",
-  "Gedung & Sipil",
-  "IT & Jaringan",
-  "Forklift & Utility",
+  "Mechanical",
+  "Electrical",
+  "Panel & Control",
+  "Genset & Power Supply",
+  "Compressor & Pneumatic",
+  "Hydrant & Fire Protection",
+  "Water Pump & Plumbing",
+  "HVAC & Air Conditioning",
+  "Building & Civil",
+  "Facility & Infrastructure",
+  "IT & Networking",
+  "CCTV & Security",
+  "Tools & Equipment",
+  "Furniture & Perlengkapan",
+  "Fabrication & Modification",
+  "Installation & Relocation",
+  "Repair & Troubleshooting",
+  "Material & Sparepart Request",
+  "General Maintenance",
+  "Other Requests"
 ];
 
 const PRIORITY_META = {
