@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  runTransaction,
+} from "firebase/firestore";
+import { db } from "./firebase";
+import {
   ClipboardList,
   Plus,
   Search,
@@ -57,7 +67,7 @@ const CATEGORIES = [
   "Repair & Troubleshooting",
   "Material & Sparepart Request",
   "General Maintenance",
-  "Other Requests"
+  "Other Requests",
 ];
 
 const PRIORITY_META = {
@@ -106,20 +116,7 @@ const STATUS_META = {
 const ADMIN_PIN = "Ypdf091001";
 const TARGET_WHATSAPP = "6282270189045";
 const TARGET_EMAIL = "yuda@pgcm.co.kr";
-const STORAGE_KEY = "eng_wo_system_active_v1";
-
-function clearAllWorkOrderStorage() {
-  try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("eng_wo_")) {
-        localStorage.removeItem(key);
-      }
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-  } catch {
-    // Abaikan jika akses storage dibatasi
-  }
-}
+const COLLECTION_NAME = "work_orders";
 
 function buildNotificationText(ticket, eventType = "NEW_WO") {
   const headerMap = {
@@ -165,18 +162,10 @@ function openEmailNotification(ticket, text) {
 }
 
 export default function App() {
-  const [tickets, setTickets] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // Mulai dari antrian kosong
-    }
-    return [];
-  });
+  const [tickets, setTickets] = useState([]);
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
+  const [dbError, setDbError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [session, setSession] = useState(null);
   const [loginRole, setLoginRole] = useState("user");
@@ -199,7 +188,7 @@ export default function App() {
     divisionHeadSignedBy: "",
     handoverStatus: "Diterima Engineering",
     title: "",
-    category: "Mesin Produksi",
+    category: "Mechanical",
     lineLocation: "",
     description: "",
   });
@@ -221,12 +210,32 @@ export default function App() {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-    } catch {
-      // Abaikan jika kapasitas penyimpanan penuh
-    }
-  }, [tickets]);
+    const colRef = collection(db, COLLECTION_NAME);
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const list = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        list.sort((a, b) =>
+          (b.createdAt || "").localeCompare(a.createdAt || ""),
+        );
+        setTickets(list);
+        setIsLoadingDb(false);
+        setDbError("");
+      },
+      (err) => {
+        console.error("Firestore error:", err);
+        setDbError(
+          "Gagal terhubung ke database Cloud Firestore. Periksa koneksi internet atau aturan Firestore.",
+        );
+        setIsLoadingDb(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
@@ -273,7 +282,7 @@ export default function App() {
       const rankA = PRIORITY_META[a.priority]?.rank ?? 9;
       const rankB = PRIORITY_META[b.priority]?.rank ?? 9;
       if (rankA !== rankB) return rankA - rankB;
-      return a.createdAt.localeCompare(b.createdAt);
+      return (a.createdAt || "").localeCompare(b.createdAt || "");
     });
   }, [tickets]);
 
@@ -335,14 +344,14 @@ export default function App() {
       divisionHeadSignedBy: "",
       handoverStatus: "Diterima Engineering",
       title: "",
-      category: "Mesin Produksi",
+      category: "Mechanical",
       lineLocation: "",
       description: "",
     });
     setIsCreateOpen(true);
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
 
@@ -359,42 +368,64 @@ export default function App() {
       return;
     }
 
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-      now.getDate(),
-    )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    setIsSubmitting(true);
+    try {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+        now.getDate(),
+      )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
-    const nextNum = String(tickets.length + 1).padStart(3, "0");
-    const newTicket = {
-      id: `WO-${now.getFullYear()}-${nextNum}`,
-      createdAt: stamp,
-      completedAt: "",
-      department: formData.department,
-      requesterName: formData.requesterName.trim(),
-      writtenFormNo: formData.writtenFormNo.trim(),
-      divisionHeadSignedBy: formData.divisionHeadSignedBy.trim(),
-      handoverStatus: formData.handoverStatus,
-      title: formData.title.trim(),
-      category: formData.category,
-      lineLocation: formData.lineLocation.trim(),
-      description: formData.description.trim() || "-",
-      priority: "P3",
-      approvedByManagement: "",
-      escalationReason: "",
-      status: "Waiting List",
-      assignedPic: "",
-      engineeringNotes: "",
-    };
+      const counterRef = doc(db, "counters", "wo_counter");
+      const nextCount = await runTransaction(db, async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        const current = counterDoc.exists() ? counterDoc.data().count || 0 : 0;
+        const updated = current + 1;
+        transaction.set(counterRef, { count: updated }, { merge: true });
+        return updated;
+      });
 
-    setTickets((prev) => [newTicket, ...prev]);
-    setIsCreateOpen(false);
-    setActiveTab("queue");
-    setNotifBanner({
-      ticket: newTicket,
-      eventType: "NEW_WO",
-      message: `Tiket ${newTicket.id} (${newTicket.department}) masuk ke Waiting List (Prioritas P3). Kirim notifikasi dokumentasi ke WhatsApp & Email:`,
-    });
+      const nextNum = String(nextCount).padStart(3, "0");
+      const ticketId = `WO-${now.getFullYear()}-${nextNum}`;
+
+      const newTicket = {
+        id: ticketId,
+        createdAt: stamp,
+        completedAt: "",
+        department: formData.department,
+        requesterName: formData.requesterName.trim(),
+        writtenFormNo: formData.writtenFormNo.trim(),
+        divisionHeadSignedBy: formData.divisionHeadSignedBy.trim(),
+        handoverStatus: formData.handoverStatus,
+        title: formData.title.trim(),
+        category: formData.category,
+        lineLocation: formData.lineLocation.trim(),
+        description: formData.description.trim() || "-",
+        priority: "P3",
+        approvedByManagement: "",
+        escalationReason: "",
+        status: "Waiting List",
+        assignedPic: "",
+        engineeringNotes: "",
+      };
+
+      await setDoc(doc(db, COLLECTION_NAME, ticketId), newTicket);
+
+      setIsCreateOpen(false);
+      setActiveTab("queue");
+      setNotifBanner({
+        ticket: newTicket,
+        eventType: "NEW_WO",
+        message: `Tiket ${newTicket.id} (${newTicket.department}) tersimpan di Cloud & masuk Waiting List (P3). Kirim notifikasi ke WhatsApp & Email:`,
+      });
+    } catch (err) {
+      console.error("Gagal menyimpan WO:", err);
+      setFormError(
+        "Gagal menyimpan ke server Firebase. Periksa koneksi internet Anda lalu coba lagi.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openManageModal = (ticket) => {
@@ -411,7 +442,7 @@ export default function App() {
     });
   };
 
-  const handleManageSubmit = (e) => {
+  const handleManageSubmit = async (e) => {
     e.preventDefault();
     setManageError("");
 
@@ -425,49 +456,58 @@ export default function App() {
       return;
     }
 
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-      now.getDate(),
-    )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    setIsSubmitting(true);
+    try {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+        now.getDate(),
+      )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
-    const priorityChanged = manageState.priority !== manageTicket.priority;
-    const statusChanged = manageState.status !== manageTicket.status;
+      const priorityChanged = manageState.priority !== manageTicket.priority;
+      const statusChanged = manageState.status !== manageTicket.status;
 
-    const updatedTicket = {
-      ...manageTicket,
-      priority: manageState.priority,
-      approvedByManagement: isEscalated
-        ? manageState.approvedByManagement.trim()
-        : "",
-      escalationReason: isEscalated
-        ? manageState.escalationReason.trim() || "Persetujuan Management"
-        : "",
-      status: manageState.status,
-      assignedPic: manageState.assignedPic.trim(),
-      handoverStatus: manageState.handoverStatus,
-      engineeringNotes: manageState.engineeringNotes.trim(),
-      completedAt:
-        manageState.status === "Done" ? manageTicket.completedAt || stamp : "",
-    };
+      const updatedFields = {
+        priority: manageState.priority,
+        approvedByManagement: isEscalated
+          ? manageState.approvedByManagement.trim()
+          : "",
+        escalationReason: isEscalated
+          ? manageState.escalationReason.trim() || "Persetujuan Management"
+          : "",
+        status: manageState.status,
+        assignedPic: manageState.assignedPic.trim(),
+        handoverStatus: manageState.handoverStatus,
+        engineeringNotes: manageState.engineeringNotes.trim(),
+        completedAt:
+          manageState.status === "Done" ? manageTicket.completedAt || stamp : "",
+      };
 
-    setTickets((prev) =>
-      prev.map((item) => (item.id === updatedTicket.id ? updatedTicket : item)),
-    );
-    setManageTicket(null);
+      await updateDoc(doc(db, COLLECTION_NAME, manageTicket.id), updatedFields);
 
-    if (priorityChanged && isEscalated) {
-      setNotifBanner({
-        ticket: updatedTicket,
-        eventType: "ESCALATION",
-        message: `Prioritas ${updatedTicket.id} dinaikkan ke ${updatedTicket.priority} (Approval: ${updatedTicket.approvedByManagement}). Kirim notifikasi ke WhatsApp & Email:`,
-      });
-    } else if (statusChanged || priorityChanged) {
-      setNotifBanner({
-        ticket: updatedTicket,
-        eventType: "STATUS_UPDATE",
-        message: `Pembaruan tiket ${updatedTicket.id} (${updatedTicket.status} | ${updatedTicket.priority}) tersimpan. Kirim notifikasi ke WhatsApp & Email:`,
-      });
+      const updatedTicket = { ...manageTicket, ...updatedFields };
+      setManageTicket(null);
+
+      if (priorityChanged && isEscalated) {
+        setNotifBanner({
+          ticket: updatedTicket,
+          eventType: "ESCALATION",
+          message: `Prioritas ${updatedTicket.id} dinaikkan ke ${updatedTicket.priority} (Approval: ${updatedTicket.approvedByManagement}). Kirim notifikasi ke WhatsApp & Email:`,
+        });
+      } else if (statusChanged || priorityChanged) {
+        setNotifBanner({
+          ticket: updatedTicket,
+          eventType: "STATUS_UPDATE",
+          message: `Pembaruan tiket ${updatedTicket.id} (${updatedTicket.status} | ${updatedTicket.priority}) tersimpan ke Cloud. Kirim notifikasi ke WhatsApp & Email:`,
+        });
+      }
+    } catch (err) {
+      console.error("Gagal update WO:", err);
+      setManageError(
+        "Gagal memperbarui tiket di server Firebase. Periksa koneksi internet Anda.",
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -514,11 +554,21 @@ export default function App() {
     XLSX.writeFile(wb, `Riwayat_Work_Order_Engineering_${today}.xlsx`);
   };
 
-  const executeResetFromZero = () => {
-    clearAllWorkOrderStorage();
-    setTickets([]);
-    setNotifBanner(null);
-    setConfirmResetOpen(false);
+  const executeResetFromZero = async () => {
+    setIsSubmitting(true);
+    try {
+      await Promise.all(
+        tickets.map((t) => deleteDoc(doc(db, COLLECTION_NAME, t.id))),
+      );
+      await setDoc(doc(db, "counters", "wo_counter"), { count: 0 });
+      setNotifBanner(null);
+      setConfirmResetOpen(false);
+    } catch (err) {
+      console.error("Gagal reset database:", err);
+      alert("Gagal mereset database Cloud. Periksa koneksi internet Anda.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!session) {
@@ -542,7 +592,7 @@ export default function App() {
             <p className="text-sm text-slate-300 mt-3 leading-relaxed">
               Alur terintegrasi: Form tertulis bertanda tangan Division Head
               diserahkan ke Engineering, lalu perwakilan departemen menginput ke
-              antrian sistem web.
+              antrian sistem web (Sinkron Real-Time Semua Perangkat).
             </p>
           </div>
 
@@ -658,7 +708,7 @@ export default function App() {
               <ClipboardList className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base sm:text-lg font-bold tracking-tight">
                   Engineering Work Order & Waiting List
                 </h1>
@@ -672,6 +722,10 @@ export default function App() {
                   {session.role === "admin"
                     ? `ADMIN · ${session.name}`
                     : `${session.department} · ${session.name}`}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Cloud Live
                 </span>
               </div>
               <p className="text-xs text-slate-400">
@@ -725,6 +779,12 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {dbError && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-800 font-medium">
+            {dbError}
+          </div>
+        )}
+
         {notifBanner && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
             <div className="space-y-1">
@@ -915,7 +975,11 @@ export default function App() {
           </div>
         </div>
 
-        {filteredTickets.length === 0 ? (
+        {isLoadingDb ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm text-slate-500">
+            Menyinkronkan data antrian dengan server Cloud...
+          </div>
+        ) : filteredTickets.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
             <p className="text-sm font-medium text-slate-600">
               Belum ada antrian Work Order atau tidak ada data yang sesuai dengan
@@ -1105,13 +1169,14 @@ export default function App() {
                 Reset Antrian & Riwayat ke 0
               </h3>
               <p className="text-sm text-slate-600">
-                Seluruh data antrian aktif dan riwayat Work Order akan dihapus
-                dan dimulai ulang dari 0. Lanjutkan?
+                Seluruh data antrian aktif dan riwayat Work Order di server Cloud
+                akan dihapus dan dimulai ulang dari 0. Lanjutkan?
               </p>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setConfirmResetOpen(false)}
                 className="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
@@ -1119,10 +1184,11 @@ export default function App() {
               </button>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={executeResetFromZero}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
               >
-                Ya, Reset ke 0
+                {isSubmitting ? "Mereset..." : "Ya, Reset ke 0"}
               </button>
             </div>
           </div>
@@ -1336,6 +1402,7 @@ export default function App() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setIsCreateOpen(false)}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
@@ -1343,10 +1410,11 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
                 >
                   <Send className="w-4 h-4" />
-                  Simpan ke Waiting List
+                  {isSubmitting ? "Menyimpan..." : "Simpan ke Waiting List"}
                 </button>
               </div>
             </form>
@@ -1533,6 +1601,7 @@ export default function App() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setManageTicket(null)}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
@@ -1540,9 +1609,10 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
                 >
-                  Simpan Perubahan
+                  {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>
