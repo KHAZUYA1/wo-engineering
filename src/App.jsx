@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   collection,
@@ -44,15 +44,10 @@ import {
   Cpu,
   Factory,
   Activity,
-  Music,
-  Volume2,
-  VolumeX,
   Upload,
   Video,
   Edit3,
   Undo2,
-  Play,
-  Square,
 } from "lucide-react";
 
 const DEFAULT_DEPARTMENTS = [
@@ -257,27 +252,6 @@ const PARTICLES = [
   { left: "90%", top: "32%", size: "w-1.5 h-1.5", delay: "3.2s", dur: "9.5s" },
 ];
 
-const BUILTIN_TRACKS = [
-  {
-    id: "builtin-1",
-    name: "Sejuk Pagi (Synth)",
-    notes: [261.63, 329.63, 392.0, 493.88, 523.25, 392.0],
-    tempoMs: 1150,
-  },
-  {
-    id: "builtin-2",
-    name: "Langit Teduh (Synth)",
-    notes: [220.0, 261.63, 329.63, 440.0, 329.63, 293.66],
-    tempoMs: 1300,
-  },
-  {
-    id: "builtin-3",
-    name: "Fokus Tenang (Synth)",
-    notes: [293.66, 369.99, 440.0, 587.33, 440.0, 369.99],
-    tempoMs: 1050,
-  },
-];
-
 const COLLECTION_NAME = "work_orders";
 
 function getEmbeddableVideoInfo(rawUrl) {
@@ -464,20 +438,6 @@ export default function App() {
   const [dbError, setDbError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Musik Bebas (Built-in + File Lokal + URL/Playlist)
-  const [playlist, setPlaylist] = useState(BUILTIN_TRACKS);
-  const [selectedTrackId, setSelectedTrackId] = useState(BUILTIN_TRACKS[0].id);
-  const [musicPlaying, setMusicPlaying] = useState(false);
-  const [musicVolume, setMusicVolume] = useState(0.4);
-  const [customAudioUrl, setCustomAudioUrl] = useState("");
-  const [customAudioTitle, setCustomAudioTitle] = useState("");
-  const [showMusicPanel, setShowMusicPanel] = useState(false);
-
-  const audioCtxRef = useRef(null);
-  const noteTimerRef = useRef(null);
-  const stepRef = useRef(0);
-  const mediaAudioRef = useRef(null);
-
   // Channel Video Info, Pengumuman, Tutorial & Iklan
   const [showVideoPanel, setShowVideoPanel] = useState(false);
   const [videoTitleDraft, setVideoTitleDraft] = useState("");
@@ -551,11 +511,6 @@ export default function App() {
   const [notifBanner, setNotifBanner] = useState(null);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
-  const activeTrack = useMemo(
-    () => playlist.find((tr) => tr.id === selectedTrackId) || playlist[0],
-    [playlist, selectedTrackId],
-  );
-
   useEffect(() => {
     setVideoTitleDraft(
       settings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle,
@@ -565,117 +520,6 @@ export default function App() {
     );
     setVideoUrlDraft(settings.videoChannelUrl || "");
   }, [settings]);
-
-  // Pemutar audio file/URL maupun synth bawaan
-  useEffect(() => {
-    if (noteTimerRef.current) {
-      clearInterval(noteTimerRef.current);
-      noteTimerRef.current = null;
-    }
-
-    if (!musicPlaying || !activeTrack) {
-      if (mediaAudioRef.current) {
-        mediaAudioRef.current.pause();
-      }
-      return;
-    }
-
-    if (activeTrack.audioSrc) {
-      if (!mediaAudioRef.current) {
-        mediaAudioRef.current = new Audio();
-      }
-      if (mediaAudioRef.current.src !== activeTrack.audioSrc) {
-        mediaAudioRef.current.src = activeTrack.audioSrc;
-      }
-      mediaAudioRef.current.loop = true;
-      mediaAudioRef.current.volume = Math.min(1, Math.max(0.05, musicVolume));
-      mediaAudioRef.current.play().catch(() => {});
-      return;
-    }
-
-    if (mediaAudioRef.current) {
-      mediaAudioRef.current.pause();
-    }
-
-    const AudioCtx =
-      window.AudioContext || window.webkitAudioContext || null;
-    if (!AudioCtx) return;
-
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new AudioCtx();
-    }
-    if (audioCtxRef.current.state === "suspended") {
-      audioCtxRef.current.resume().catch(() => {});
-    }
-
-    const playSoftNote = () => {
-      const ctx = audioCtxRef.current;
-      if (!ctx) return;
-      const now = ctx.currentTime;
-      const freq = activeTrack.notes[stepRef.current % activeTrack.notes.length];
-      stepRef.current += 1;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now);
-
-      const peak = Math.max(0.005, musicVolume * 0.08);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(peak, now + 0.25);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 1.5);
-    };
-
-    playSoftNote();
-    noteTimerRef.current = setInterval(playSoftNote, activeTrack.tempoMs || 1150);
-
-    return () => {
-      if (noteTimerRef.current) {
-        clearInterval(noteTimerRef.current);
-        noteTimerRef.current = null;
-      }
-    };
-  }, [musicPlaying, activeTrack, musicVolume]);
-
-  const handleUploadAudioFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const objectUrl = URL.createObjectURL(file);
-    const id = `local-${Date.now()}`;
-    const newTrack = {
-      id,
-      name: file.name.replace(/\.[^/.]+$/, ""),
-      audioSrc: objectUrl,
-    };
-    setPlaylist((prev) => [newTrack, ...prev]);
-    setSelectedTrackId(id);
-    setMusicPlaying(true);
-  };
-
-  const handleAddAudioUrl = (e) => {
-    e.preventDefault();
-    const cleanUrl = customAudioUrl.trim();
-    if (!cleanUrl) return;
-    const id = `url-${Date.now()}`;
-    const label =
-      customAudioTitle.trim() || cleanUrl.split("/").pop() || "Audio Custom";
-    const newTrack = {
-      id,
-      name: label,
-      audioSrc: cleanUrl,
-    };
-    setPlaylist((prev) => [newTrack, ...prev]);
-    setSelectedTrackId(id);
-    setMusicPlaying(true);
-    setCustomAudioUrl("");
-    setCustomAudioTitle("");
-  };
 
   const handleUploadChannelVideo = (e) => {
     const file = e.target.files?.[0];
@@ -1347,57 +1191,6 @@ export default function App() {
   const activeVideoSource = videoUploadedUrl || settings.videoChannelUrl || "";
   const embedVideo = getEmbeddableVideoInfo(activeVideoSource);
 
-  const renderMusicBar = () => (
-    <div className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-xl px-2 py-1 text-xs">
-      <button
-        type="button"
-        onClick={() => setMusicPlaying((prev) => !prev)}
-        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-semibold transition cursor-pointer ${
-          musicPlaying
-            ? "bg-teal-400 text-slate-950"
-            : "bg-white/10 text-teal-200 hover:bg-white/20"
-        }`}
-        title={musicPlaying ? "Stop Musik" : "Putar Musik"}
-      >
-        {musicPlaying ? (
-          <Square className="w-3 h-3 fill-current" />
-        ) : (
-          <Play className="w-3 h-3 fill-current" />
-        )}
-        <span className="hidden sm:inline">
-          {musicPlaying ? "Stop" : "Musik"}
-        </span>
-      </button>
-
-      <select
-        value={selectedTrackId}
-        onChange={(e) => {
-          stepRef.current = 0;
-          setSelectedTrackId(e.target.value);
-          setMusicPlaying(true);
-        }}
-        className="bg-slate-900/90 text-teal-100 border border-white/15 rounded-lg px-2 py-1 text-[11px] max-w-[130px] sm:max-w-[165px] focus:outline-none cursor-pointer"
-        aria-label="Pilih musik dari daftar"
-      >
-        {playlist.map((tr) => (
-          <option key={tr.id} value={tr.id}>
-            {tr.name}
-          </option>
-        ))}
-      </select>
-
-      <button
-        type="button"
-        onClick={() => setShowMusicPanel((prev) => !prev)}
-        className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-teal-200 cursor-pointer"
-        title="Upload / Tambah Musik Bebas"
-      >
-        <Music className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-
-  // Hak cipta diletakkan di bagian bawah web dashboard / login (bukan di dalam form cetak)
   const renderFooter = () => (
     <footer className="relative z-10 mt-10 border-t border-white/15 bg-slate-950/80 backdrop-blur-lg text-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
@@ -1438,7 +1231,6 @@ export default function App() {
                   <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-teal-400/15 text-teal-200 border border-teal-300/30">
                     Sejuk, Berwarna &amp; Hidup
                   </span>
-                  {renderMusicBar()}
                 </div>
 
                 <div className="flex items-center gap-3.5">
@@ -1638,17 +1430,6 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-              <div className="col-span-2 sm:col-span-1">{renderMusicBar()}</div>
-
-              <button
-                type="button"
-                onClick={() => setShowVideoPanel((prev) => !prev)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/30 text-xs font-semibold transition cursor-pointer"
-              >
-                <Video className="w-4 h-4" />
-                Channel Video
-              </button>
-
               <button
                 type="button"
                 onClick={openCreateModal}
@@ -1703,84 +1484,6 @@ export default function App() {
         </header>
 
         <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
-          {/* Panel Pemutar Musik Bebas (Upload File / URL / Daftar Lagu) */}
-          {showMusicPanel && (
-            <div className="bg-slate-900/92 backdrop-blur-xl border border-teal-400/35 text-white rounded-2xl p-4 space-y-3 shadow-xl">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-teal-300">
-                  <Music className="w-4 h-4" />
-                  Pemutar Musik Bebas &amp; Daftar Lagu
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMusicPanel(false)}
-                  className="p-1 rounded-lg text-slate-300 hover:bg-white/10 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-                <label className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  Upload File Musik (MP3/WAV/OGG)
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleUploadAudioFile}
-                    className="hidden"
-                  />
-                </label>
-
-                <form onSubmit={handleAddAudioUrl} className="md:col-span-2 flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={customAudioTitle}
-                    onChange={(e) => setCustomAudioTitle(e.target.value)}
-                    placeholder="Judul lagu (opsional)"
-                    className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-400 sm:w-44"
-                  />
-                  <input
-                    type="text"
-                    value={customAudioUrl}
-                    onChange={(e) => setCustomAudioUrl(e.target.value)}
-                    placeholder="Tempel link file musik (.mp3 / .ogg / .wav)..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-400"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer"
-                  >
-                    + Tambah ke Daftar
-                  </button>
-                </form>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/10 text-xs">
-                <div className="flex items-center gap-2">
-                  {musicPlaying ? (
-                    <Volume2 className="w-4 h-4 text-teal-300" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 text-slate-400" />
-                  )}
-                  <span>Volume: {Math.round(musicVolume * 100)}%</span>
-                  <input
-                    type="range"
-                    min={0.05}
-                    max={1}
-                    step={0.05}
-                    value={musicVolume}
-                    onChange={(e) => setMusicVolume(Number(e.target.value))}
-                    className="w-28 accent-teal-400 cursor-pointer"
-                  />
-                </div>
-                <span className="text-slate-300">
-                  Sedang dipilih: <strong>{activeTrack?.name}</strong>
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Channel Video Info, Pengumuman, Tutorial & Iklan */}
           {showVideoPanel && (
             <div className="bg-white/95 backdrop-blur-xl border border-sky-300 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
@@ -2353,7 +2056,7 @@ export default function App() {
               })}
             </div>
           )}
-        
+
           <MediaAnnouncementHub
             db={db}
             appId="wo-engineering"
