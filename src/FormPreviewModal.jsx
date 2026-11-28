@@ -1141,6 +1141,7 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
             padding: 0 !important;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important;
             overflow: visible !important;
           }
           body.wo-is-printing > *:not(#wo-print-snapshot) {
@@ -1150,21 +1151,27 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
+            position: static !important;
             width: 100% !important;
-            min-height: 95vh !important;
-            margin: 0 auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            break-before: avoid !important;
+            break-after: avoid !important;
           }
           #wo-print-snapshot img {
             display: block !important;
             opacity: 1 !important;
-            max-width: 100% !important;
-            max-height: 282mm !important;
             width: auto !important;
             height: auto !important;
+            max-width: 196mm !important;
+            max-height: 272mm !important;
             object-fit: contain !important;
-            margin: auto !important;
+            margin: 0 auto !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
