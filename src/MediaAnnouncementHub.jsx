@@ -11,8 +11,6 @@ import {
   Check,
   MessageSquare,
   Send,
-  ShieldCheck,
-  Save,
   Trash2,
 } from "lucide-react";
 
@@ -55,8 +53,12 @@ export default function MediaAnnouncementHub({
   appId = "wo-engineering",
   currentUserName = "",
   isAdmin = false,
+  externalVideoUrl = "",
+  externalBannerText = "",
+  externalTitle = "",
+  externalSubtitle = "",
 }) {
-  // ---------------- 1. PENCARIAN MUSIK ONLINE (TANPA SEJUK PAGI / SYNTH) ----------------
+  // ---------------- 1. PENCARIAN MUSIK ONLINE ----------------
   const [musicQuery, setMusicQuery] = useState("");
   const [tracks, setTracks] = useState([]);
   const [activeTrack, setActiveTrack] = useState(null);
@@ -156,16 +158,9 @@ export default function MediaAnnouncementHub({
       .catch(() => setIsPlaying(false));
   };
 
-  // ---------------- 2. BANNER IKLAN/PENGUMUMAN 1 BARIS (EDIT HANYA ADMIN) ----------------
+  // ---------------- 2. BANNER INFO & PENGUMUMAN TERBARU ----------------
   const [expanded, setExpanded] = useState(false);
   const [adConfig, setAdConfig] = useState(DEFAULT_AD_CONFIG);
-  const [editingAd, setEditingAd] = useState(false);
-  const [draftBannerText, setDraftBannerText] = useState(
-    DEFAULT_AD_CONFIG.bannerText
-  );
-  const [draftTitle, setDraftTitle] = useState(DEFAULT_AD_CONFIG.title);
-  const [draftSubtitle, setDraftSubtitle] = useState(DEFAULT_AD_CONFIG.subtitle);
-  const [draftVideoUrl, setDraftVideoUrl] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
 
   const AD_KEY = `${appId}_ad_announcement_v1`;
@@ -188,12 +183,7 @@ export default function MediaAnnouncementHub({
           );
           unsub = fs.onSnapshot(ref, (snap) => {
             if (snap.exists()) {
-              const next = { ...DEFAULT_AD_CONFIG, ...snap.data() };
-              setAdConfig(next);
-              setDraftBannerText(next.bannerText);
-              setDraftTitle(next.title);
-              setDraftSubtitle(next.subtitle);
-              setDraftVideoUrl(next.videoUrl || "");
+              setAdConfig((prev) => ({ ...prev, ...snap.data() }));
             }
           });
         } catch {
@@ -208,63 +198,33 @@ export default function MediaAnnouncementHub({
     try {
       const saved = localStorage.getItem(AD_KEY);
       if (saved) {
-        const next = { ...DEFAULT_AD_CONFIG, ...JSON.parse(saved) };
-        setAdConfig(next);
-        setDraftBannerText(next.bannerText);
-        setDraftTitle(next.title);
-        setDraftSubtitle(next.subtitle);
-        setDraftVideoUrl(next.videoUrl || "");
+        setAdConfig((prev) => ({ ...prev, ...JSON.parse(saved) }));
       }
     } catch {
       // abaikan
     }
   }, [db, appId]);
 
-  const handleSaveAdByAdmin = async (e) => {
-    e.preventDefault();
-    if (!isAdmin) return;
-    const payload = {
-      bannerText: draftBannerText.trim() || DEFAULT_AD_CONFIG.bannerText,
-      title: draftTitle.trim() || DEFAULT_AD_CONFIG.title,
-      subtitle: draftSubtitle.trim() || DEFAULT_AD_CONFIG.subtitle,
-      videoUrl: draftVideoUrl.trim(),
-      updatedAt: new Date().toLocaleString("id-ID"),
-    };
-    setAdConfig(payload);
-    setEditingAd(false);
-
-    try {
-      localStorage.setItem(AD_KEY, JSON.stringify(payload));
-    } catch {
-      // abaikan
-    }
-
-    if (db) {
-      try {
-        const fs = await import("firebase/firestore");
-        const ref = fs.doc(
-          db,
-          "artifacts",
-          appId,
-          "public",
-          "data",
-          "adAnnouncement",
-          "main"
-        );
-        await fs.setDoc(ref, payload, { merge: true });
-      } catch {
-        // abaikan
-      }
-    }
-  };
+  const effectiveBannerText =
+    (externalBannerText || "").trim() ||
+    adConfig.bannerText ||
+    DEFAULT_AD_CONFIG.bannerText;
+  const effectiveTitle =
+    (externalTitle || "").trim() || adConfig.title || DEFAULT_AD_CONFIG.title;
+  const effectiveSubtitle =
+    (externalSubtitle || "").trim() ||
+    adConfig.subtitle ||
+    DEFAULT_AD_CONFIG.subtitle;
+  const effectiveVideoUrl =
+    (externalVideoUrl || "").trim() || (adConfig.videoUrl || "").trim();
 
   const ytEmbed = useMemo(
-    () => extractYoutubeEmbedUrl(adConfig.videoUrl),
-    [adConfig.videoUrl]
+    () => extractYoutubeEmbedUrl(effectiveVideoUrl),
+    [effectiveVideoUrl]
   );
 
-  const shareUrl = adConfig.videoUrl || window.location.href;
-  const shareText = `${adConfig.title} — ${shareUrl}`;
+  const shareUrl = effectiveVideoUrl || window.location.href;
+  const shareText = `${effectiveTitle} — ${shareUrl}`;
 
   const copyShare = () => {
     navigator.clipboard?.writeText(shareText);
@@ -391,19 +351,16 @@ export default function MediaAnnouncementHub({
   };
 
   return (
-    <div className="space-y-2 my-2.5">
+    <div className="space-y-2">
       <audio
         ref={audioRef}
         onEnded={() => setIsPlaying(false)}
         className="hidden"
       />
 
-      {/* 1. PENCARIAN MUSIK ONLINE DI BAGIAN ATAS */}
+      {/* 1. PENCARIAN MUSIK ONLINE DI BAR ATAS */}
       <div className="rounded-xl bg-slate-900/95 text-white px-3 py-2 border border-slate-700/80 shadow-xs space-y-1.5">
-        <form
-          onSubmit={handleSearchMusic}
-          className="flex items-center gap-2"
-        >
+        <form onSubmit={handleSearchMusic} className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-teal-300 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -473,7 +430,7 @@ export default function MediaAnnouncementHub({
         )}
       </div>
 
-      {/* 2. BARIS IKLAN & PENGUMUMAN MENARIK 1 BARIS DI BAGIAN ATAS */}
+      {/* 2. BARIS INFO & PENGUMUMAN TERBARU DI BAR ATAS */}
       <div className="rounded-xl overflow-hidden border border-amber-300/80 shadow-xs bg-white">
         <button
           type="button"
@@ -483,7 +440,7 @@ export default function MediaAnnouncementHub({
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-yellow-200 shrink-0" />
             <span className="text-xs sm:text-sm font-bold truncate">
-              {adConfig.bannerText}
+              {effectiveBannerText}
             </span>
           </div>
           <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-black/20 px-2 py-0.5 rounded-full shrink-0">
@@ -499,99 +456,34 @@ export default function MediaAnnouncementHub({
           </span>
         </button>
 
-        {/* Konten Video + Share Medsos + Komentar Realtime saat Banner Diklik */}
         {expanded && (
           <div className="p-3.5 sm:p-4 space-y-3.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {adConfig.title}
-                </h3>
-                <p className="text-xs text-slate-500">{adConfig.subtitle}</p>
-              </div>
-
-              {/* Tombol edit HANYA muncul jika user berstatus Admin */}
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setEditingAd((prev) => !prev)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold cursor-pointer self-start sm:self-auto"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {editingAd ? "Tutup Edit Admin" : "Edit Pengumuman (Admin)"}
-                </button>
-              )}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {effectiveTitle}
+              </h3>
+              <p className="text-xs text-slate-500">{effectiveSubtitle}</p>
             </div>
 
-            {/* Form Edit Khusus Admin Saja */}
-            {isAdmin && editingAd && (
-              <form
-                onSubmit={handleSaveAdByAdmin}
-                className="rounded-xl border border-amber-300 bg-amber-50/80 p-3 space-y-2 text-xs"
-              >
-                <div className="font-bold text-amber-950">
-                  Atur Teks Iklan &amp; Link Video (Khusus Admin)
-                </div>
-                <input
-                  type="text"
-                  value={draftBannerText}
-                  onChange={(e) => setDraftBannerText(e.target.value)}
-                  placeholder="Teks menarik 1 baris pada banner iklan/pengumuman"
-                  className="w-full px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-slate-900"
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    value={draftTitle}
-                    onChange={(e) => setDraftTitle(e.target.value)}
-                    placeholder="Judul pengumuman"
-                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-slate-900"
-                  />
-                  <input
-                    type="text"
-                    value={draftSubtitle}
-                    onChange={(e) => setDraftSubtitle(e.target.value)}
-                    placeholder="Keterangan singkat"
-                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-slate-900"
-                  />
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={draftVideoUrl}
-                    onChange={(e) => setDraftVideoUrl(e.target.value)}
-                    placeholder="Link video YouTube atau MP4..."
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-slate-900"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-1 px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer shrink-0"
-                  >
-                    <Save className="w-3.5 h-3.5" /> Simpan
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Player Video */}
+            {/* Player Video (Link video diatur oleh Admin di menu Setting) */}
             <div className="rounded-xl overflow-hidden bg-slate-950 aspect-video max-h-[380px] mx-auto w-full flex items-center justify-center">
               {ytEmbed ? (
                 <iframe
                   src={ytEmbed}
-                  title={adConfig.title}
+                  title={effectiveTitle}
                   className="w-full h-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                 />
-              ) : adConfig.videoUrl ? (
+              ) : effectiveVideoUrl ? (
                 <video
-                  src={adConfig.videoUrl}
+                  src={effectiveVideoUrl}
                   controls
                   className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="text-slate-400 text-xs p-5 text-center">
-                  Video pengumuman belum diatur oleh Admin.
+                  Video pengumuman belum diatur oleh Admin di menu Setting.
                 </div>
               )}
             </div>
@@ -624,7 +516,7 @@ export default function MediaAnnouncementHub({
                 <a
                   href={`https://t.me/share/url?url=${encodeURIComponent(
                     shareUrl
-                  )}&text=${encodeURIComponent(adConfig.title)}`}
+                  )}&text=${encodeURIComponent(effectiveTitle)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-semibold"

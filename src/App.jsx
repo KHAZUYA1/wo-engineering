@@ -48,6 +48,9 @@ import {
   Video,
   Edit3,
   Undo2,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const DEFAULT_DEPARTMENTS = [
@@ -125,6 +128,25 @@ const DEFAULT_SETTINGS = {
   departments: DEFAULT_DEPARTMENTS,
   categories: DEFAULT_CATEGORIES,
 };
+
+const FAQ_ITEMS = [
+  {
+    q: "Bagaimana cara membuat & mencetak Form Request Work Order?",
+    a: "Klik tombol 'Buat Form Request WO', isi data pemohon, jenis pekerjaan, serta keterangan/foto, lalu simpan. Setelah terbit, klik 'Preview / PDF / Print' untuk mencetak atau menyimpan PDF guna tanda tangan manual.",
+  },
+  {
+    q: "Apakah user bisa mengedit atau menarik ulang form yang salah input?",
+    a: "Bisa. Selama status tiket belum 'Done', user dapat menekan tombol 'Edit / Revisi' untuk memperbaiki data atau 'Tarik Ulang' untuk membatalkan form.",
+  },
+  {
+    q: "Bagaimana urutan antrian (Waiting List) bekerja?",
+    a: "Antrian diprioritaskan berdasarkan skala P1 (Critical), P2 (High), lalu P3 (Normal/FIFO). Eskalasi ke P1 atau P2 wajib menyertakan persetujuan Management.",
+  },
+  {
+    q: "Bagaimana cara mengubah link video pada bar Info & Pengumuman Terbaru?",
+    a: "Masuk sebagai Admin Engineering, buka menu 'Setting', lalu atur link video (YouTube atau .mp4) dan simpan.",
+  },
+];
 
 const THEME_STYLES = {
   slate: {
@@ -258,8 +280,9 @@ function getEmbeddableVideoInfo(rawUrl) {
   const url = (rawUrl || "").trim();
   if (!url) return { type: "none", src: "" };
 
-  const ytMatch =
-    url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/);
+  const ytMatch = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/
+  );
   if (ytMatch?.[1]) {
     return {
       type: "iframe",
@@ -310,7 +333,7 @@ function CalmCard({ children, className = "", motionMode = "3d-dynamic" }) {
 function FuturisticBackdrop({ activeTheme, settings }) {
   const overlayOpacity = Math.min(
     0.92,
-    Math.max(0.1, (settings.bgOverlayOpacity ?? 55) / 100),
+    Math.max(0.1, (settings.bgOverlayOpacity ?? 55) / 100)
   );
   const motionMode = settings.motionMode || "3d-dynamic";
 
@@ -438,6 +461,10 @@ export default function App() {
   const [dbError, setDbError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Pusat Bantuan FAQ di Footer
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+
   // Channel Video Info, Pengumuman, Tutorial & Iklan
   const [showVideoPanel, setShowVideoPanel] = useState(false);
   const [videoTitleDraft, setVideoTitleDraft] = useState("");
@@ -513,10 +540,10 @@ export default function App() {
 
   useEffect(() => {
     setVideoTitleDraft(
-      settings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle,
+      settings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle
     );
     setVideoDescDraft(
-      settings.videoChannelDesc || DEFAULT_SETTINGS.videoChannelDesc,
+      settings.videoChannelDesc || DEFAULT_SETTINGS.videoChannelDesc
     );
     setVideoUrlDraft(settings.videoChannelUrl || "");
   }, [settings]);
@@ -532,6 +559,7 @@ export default function App() {
   };
 
   const handleSaveChannelVideo = async () => {
+    if (session?.role !== "admin") return;
     const updated = {
       ...settings,
       videoChannelTitle:
@@ -563,7 +591,7 @@ export default function App() {
           ...docSnap.data(),
         }));
         list.sort((a, b) =>
-          (b.createdAt || "").localeCompare(a.createdAt || ""),
+          (b.createdAt || "").localeCompare(a.createdAt || "")
         );
         setTickets(list);
         setIsLoadingDb(false);
@@ -572,34 +600,97 @@ export default function App() {
       (err) => {
         console.error("Firestore error:", err);
         setDbError(
-          "Gagal terhubung ke database Cloud Firestore. Periksa koneksi internet atau aturan Firestore.",
+          "Gagal terhubung ke database Cloud Firestore. Periksa koneksi internet atau aturan Firestore."
         );
         setIsLoadingDb(false);
-      },
+      }
     );
 
     return () => unsubscribe();
   }, []);
 
   const handleSaveSettings = async (newSettings) => {
+    if (session?.role !== "admin") return;
     await setDoc(doc(db, "settings", "wo_config"), newSettings, { merge: true });
     setSettings(newSettings);
+
+    try {
+      localStorage.setItem(
+        "wo-engineering_ad_announcement_v1",
+        JSON.stringify({
+          bannerText:
+            newSettings.announcementText ||
+            "INFO & PENGUMUMAN TERBARU — Update penting & panduan internal PT Sino Indah Jaya, klik di sini untuk melihat!",
+          title:
+            newSettings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle,
+          subtitle:
+            newSettings.videoChannelDesc || DEFAULT_SETTINGS.videoChannelDesc,
+          videoUrl: newSettings.videoChannelUrl || "",
+          updatedAt: new Date().toLocaleString("id-ID"),
+        })
+      );
+    } catch {
+      // abaikan
+    }
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          "artifacts",
+          "wo-engineering",
+          "public",
+          "data",
+          "adAnnouncement",
+          "main"
+        ),
+        {
+          bannerText:
+            newSettings.announcementText ||
+            "INFO & PENGUMUMAN TERBARU — Update penting & panduan internal PT Sino Indah Jaya, klik di sini untuk melihat!",
+          title:
+            newSettings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle,
+          subtitle:
+            newSettings.videoChannelDesc || DEFAULT_SETTINGS.videoChannelDesc,
+          videoUrl: newSettings.videoChannelUrl || "",
+          updatedAt: new Date().toLocaleString("id-ID"),
+        },
+        { merge: true }
+      );
+    } catch {
+      // abaikan
+    }
   };
 
   const openWhatsAppNotification = (text) => {
     const phone = (settings.targetWhatsapp || "6282270189045").replace(
       /\D/g,
-      "",
+      ""
     );
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const openCustomerServiceWhatsApp = () => {
+    const phone = (settings.targetWhatsapp || "6282270189045").replace(
+      /\D/g,
+      ""
+    );
+    const msg = `Halo CS ${settings.companyName || "PT. Sino Indah Jaya"}, saya ingin bertanya terkait ${
+      settings.appTitle || "Engineering Work Order"
+    }.`;
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const openEmailNotification = (ticket, text) => {
     const email = settings.targetEmail || "yuda@pgcm.co.kr";
     const subject = `[WO Engineering] ${ticket.id} - ${ticket.department} (${ticket.priority} | ${ticket.status})`;
     const mailto = `mailto:${email}?subject=${encodeURIComponent(
-      subject,
+      subject
     )}&body=${encodeURIComponent(text)}`;
     window.location.href = mailto;
   };
@@ -658,7 +749,7 @@ export default function App() {
 
   const completedTickets = useMemo(
     () => tickets.filter((t) => t.status === "Done"),
-    [tickets],
+    [tickets]
   );
 
   const filteredTickets = useMemo(() => {
@@ -789,7 +880,7 @@ export default function App() {
 
     if (!formData.requesterName.trim() || !formData.description.trim()) {
       setFormError(
-        "Lengkapi Nama Yang Meminta dan Keterangan Masalah / Permintaan.",
+        "Lengkapi Nama Yang Meminta dan Keterangan Masalah / Permintaan."
       );
       return;
     }
@@ -842,7 +933,7 @@ export default function App() {
       const pad = (n) => String(n).padStart(2, "0");
       const dateStr = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`;
       const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-        now.getDate(),
+        now.getDate()
       )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
       const counterRef = doc(db, "counters", "wo_counter");
@@ -921,7 +1012,7 @@ export default function App() {
     } catch (err) {
       console.error("Gagal menyimpan WO:", err);
       setFormError(
-        "Gagal menyimpan ke server Firebase. Periksa koneksi internet Anda lalu coba lagi.",
+        "Gagal menyimpan ke server Firebase. Periksa koneksi internet Anda lalu coba lagi."
       );
     } finally {
       setIsSubmitting(false);
@@ -1039,7 +1130,7 @@ export default function App() {
       !manageState.approvedByManagement.trim()
     ) {
       setManageError(
-        "SOP Management: Menaikkan prioritas ke P1 atau P2 WAJIB mengisi nama pihak Management yang menyetujui.",
+        "SOP Management: Menaikkan prioritas ke P1 atau P2 WAJIB mengisi nama pihak Management yang menyetujui."
       );
       return;
     }
@@ -1049,7 +1140,7 @@ export default function App() {
       const now = new Date();
       const pad = (n) => String(n).padStart(2, "0");
       const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-        now.getDate(),
+        now.getDate()
       )} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
       const priorityChanged = manageState.priority !== manageTicket.priority;
@@ -1105,7 +1196,7 @@ export default function App() {
     } catch (err) {
       console.error("Gagal update WO:", err);
       setManageError(
-        "Gagal memperbarui tiket di server Firebase. Periksa koneksi internet Anda.",
+        "Gagal memperbarui tiket di server Firebase. Periksa koneksi internet Anda."
       );
     } finally {
       setIsSubmitting(false);
@@ -1144,7 +1235,7 @@ export default function App() {
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(tickets.map(formatRow)),
-      "Semua Data WO",
+      "Semua Data WO"
     );
     XLSX.utils.book_append_sheet(
       wb,
@@ -1152,14 +1243,14 @@ export default function App() {
         activeQueue.map((t, idx) => ({
           "Urutan Antrian": idx + 1,
           ...formatRow(t, idx),
-        })),
+        }))
       ),
-      "Waiting List Aktif",
+      "Waiting List Aktif"
     );
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(completedTickets.map(formatRow)),
-      "Riwayat Selesai",
+      "Riwayat Selesai"
     );
 
     const today = new Date().toISOString().slice(0, 10);
@@ -1170,7 +1261,7 @@ export default function App() {
     setIsSubmitting(true);
     try {
       await Promise.all(
-        tickets.map((t) => deleteDoc(doc(db, COLLECTION_NAME, t.id))),
+        tickets.map((t) => deleteDoc(doc(db, COLLECTION_NAME, t.id)))
       );
       await setDoc(doc(db, "counters", "wo_counter"), { count: 0 });
       setNotifBanner(null);
@@ -1192,17 +1283,86 @@ export default function App() {
   const embedVideo = getEmbeddableVideoInfo(activeVideoSource);
 
   const renderFooter = () => (
-    <footer className="relative z-10 mt-10 border-t border-white/15 bg-slate-950/80 backdrop-blur-lg text-slate-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-        <span>
-          © Hak Cipta <strong>Yuda Pamungkas</strong> ·{" "}
-          <span className="text-teal-200 font-medium">
-            {settings.companyName}
+    <footer className="relative z-10 mt-10 border-t border-white/15 bg-slate-950/90 backdrop-blur-lg text-slate-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-3 text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFaqOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-teal-200 border border-teal-400/30 font-semibold transition cursor-pointer"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-teal-300" />
+              Pusat Bantuan FAQ
+              {faqOpen ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={openCustomerServiceWhatsApp}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition cursor-pointer shadow-xs"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              CS WhatsApp
+            </button>
+          </div>
+
+          <span className="text-slate-400 text-[11px]">
+            © Hak Cipta <strong>Yuda Pamungkas</strong> ·{" "}
+            <span className="text-teal-200 font-medium">
+              {settings.companyName}
+            </span>
           </span>
-        </span>
-        <span className="text-slate-400 text-[11px]">
-          {settings.appTitle} · {settings.docNumber}
-        </span>
+        </div>
+
+        {faqOpen && (
+          <div className="rounded-2xl border border-white/15 bg-slate-900/90 p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-teal-300">
+                Pusat Bantuan FAQ — {settings.appTitle}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFaqOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="divide-y divide-white/10">
+              {FAQ_ITEMS.map((item, idx) => {
+                const isItemOpen = openFaqIndex === idx;
+                return (
+                  <div key={item.q} className="py-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenFaqIndex(isItemOpen ? -1 : idx)
+                      }
+                      className="w-full text-left flex items-center justify-between gap-2 font-semibold text-slate-100 hover:text-teal-200 cursor-pointer"
+                    >
+                      <span>{item.q}</span>
+                      {isItemOpen ? (
+                        <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                    </button>
+                    {isItemOpen && (
+                      <p className="text-slate-300 text-[11px] mt-1 leading-relaxed">
+                        {item.a}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </footer>
   );
@@ -1227,12 +1387,6 @@ export default function App() {
               <div
                 className={`${activeTheme.header} backdrop-blur-md text-white p-5 sm:p-6 border-b border-white/10`}
               >
-                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-teal-400/15 text-teal-200 border border-teal-300/30">
-                    Sejuk, Berwarna &amp; Hidup
-                  </span>
-                </div>
-
                 <div className="flex items-center gap-3.5">
                   <div
                     className={`w-12 h-12 ${
@@ -1484,6 +1638,18 @@ export default function App() {
         </header>
 
         <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
+          {/* PENCARIAN MUSIK & INFO & PENGUMUMAN TERBARU DI BAR ATAS */}
+          <MediaAnnouncementHub
+            db={db}
+            appId="wo-engineering"
+            currentUserName={formData?.requesterName || session?.name || ""}
+            isAdmin={session?.role === "admin"}
+            externalVideoUrl={settings.videoChannelUrl || ""}
+            externalBannerText={settings.announcementText || ""}
+            externalTitle={settings.videoChannelTitle || ""}
+            externalSubtitle={settings.videoChannelDesc || ""}
+          />
+
           {/* Channel Video Info, Pengumuman, Tutorial & Iklan */}
           {showVideoPanel && (
             <div className="bg-white/95 backdrop-blur-xl border border-sky-300 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
@@ -1532,52 +1698,57 @@ export default function App() {
 
               {embedVideo.type === "none" && (
                 <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50/60 p-6 text-center text-xs text-sky-900">
-                  Belum ada video diputar. Upload file video lokal atau tempel link YouTube / MP4 di bawah ini untuk info, pengumuman, tutorial, atau iklan.
+                  Belum ada video diputar.{" "}
+                  {session.role === "admin"
+                    ? "Upload file video lokal atau atur link video di menu Setting."
+                    : "Hubungi Admin untuk mengatur link video di menu Setting."}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
-                <input
-                  type="text"
-                  value={videoTitleDraft}
-                  onChange={(e) => setVideoTitleDraft(e.target.value)}
-                  placeholder="Judul Info / Tutorial / Iklan"
-                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
-                />
-                <input
-                  type="text"
-                  value={videoDescDraft}
-                  onChange={(e) => setVideoDescDraft(e.target.value)}
-                  placeholder="Keterangan singkat video"
-                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
-                />
-                <input
-                  type="text"
-                  value={videoUrlDraft}
-                  onChange={(e) => setVideoUrlDraft(e.target.value)}
-                  placeholder="Link YouTube atau URL video (.mp4)"
-                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
-                />
-                <div className="flex items-center gap-2">
-                  <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-semibold cursor-pointer">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload Video
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleUploadChannelVideo}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleSaveChannelVideo}
-                    className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold cursor-pointer"
-                  >
-                    Simpan
-                  </button>
+              {session.role === "admin" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+                  <input
+                    type="text"
+                    value={videoTitleDraft}
+                    onChange={(e) => setVideoTitleDraft(e.target.value)}
+                    placeholder="Judul Info / Tutorial / Iklan"
+                    className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={videoDescDraft}
+                    onChange={(e) => setVideoDescDraft(e.target.value)}
+                    placeholder="Keterangan singkat video"
+                    className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={videoUrlDraft}
+                    onChange={(e) => setVideoUrlDraft(e.target.value)}
+                    placeholder="Link YouTube atau URL video (.mp4)"
+                    className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-semibold cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload Video
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleUploadChannelVideo}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSaveChannelVideo}
+                      className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold cursor-pointer"
+                    >
+                      Simpan
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -1620,8 +1791,8 @@ export default function App() {
                       buildNotificationText(
                         notifBanner.ticket,
                         notifBanner.eventType,
-                        settings,
-                      ),
+                        settings
+                      )
                     )
                   }
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
@@ -1637,8 +1808,8 @@ export default function App() {
                       buildNotificationText(
                         notifBanner.ticket,
                         notifBanner.eventType,
-                        settings,
-                      ),
+                        settings
+                      )
                     )
                   }
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold cursor-pointer"
@@ -1684,7 +1855,7 @@ export default function App() {
                 <p className="text-xl sm:text-2xl font-extrabold text-rose-600 mt-1">
                   {
                     activeQueue.filter(
-                      (t) => t.priority === "P1" || t.priority === "P2",
+                      (t) => t.priority === "P1" || t.priority === "P2"
                     ).length
                   }
                 </p>
@@ -2021,8 +2192,8 @@ export default function App() {
                                 buildNotificationText(
                                   ticket,
                                   "MANUAL_LOG",
-                                  settings,
-                                ),
+                                  settings
+                                )
                               )
                             }
                             className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition cursor-pointer"
@@ -2039,8 +2210,8 @@ export default function App() {
                                 buildNotificationText(
                                   ticket,
                                   "MANUAL_LOG",
-                                  settings,
-                                ),
+                                  settings
+                                )
                               )
                             }
                             className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold transition cursor-pointer"
@@ -2056,13 +2227,6 @@ export default function App() {
               })}
             </div>
           )}
-
-          <MediaAnnouncementHub
-            db={db}
-            appId="wo-engineering"
-            currentUserName={formData?.requesterName || session?.name || ""}
-            isAdmin={session?.role === "admin"}
-          />
         </main>
       </div>
 
@@ -2978,7 +3142,7 @@ export default function App() {
                               updateMaterialRow(
                                 idx,
                                 "description",
-                                e.target.value,
+                                e.target.value
                               )
                             }
                             className="px-2 py-1 border border-slate-300 rounded-lg text-xs bg-white"
@@ -3053,4 +3217,5 @@ export default function App() {
       )}
     </div>
   );
+  
 }

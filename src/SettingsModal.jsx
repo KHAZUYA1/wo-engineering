@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Sparkles,
   Box,
+  Video,
 } from "lucide-react";
 
 const THEME_OPTIONS = [
@@ -219,7 +220,11 @@ export default function SettingsModal({
 
     setSaving(true);
     try {
-      const payload = { ...draft, adminPin: cleanPin };
+      const payload = {
+        ...draft,
+        adminPin: cleanPin,
+        videoChannelUrl: (draft.videoChannelUrl || "").trim(),
+      };
       delete payload.confirmPin;
       await onSave(payload);
       onClose();
@@ -241,7 +246,7 @@ export default function SettingsModal({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold">
-                Pengaturan Sistem, Tampilan & Master Data
+                Pengaturan Sistem, Tampilan &amp; Master Data
               </h3>
               <p className="text-xs text-slate-400">
                 Tersimpan real-time ke Cloud Firestore dan langsung diterapkan ke seluruh menu.
@@ -260,6 +265,7 @@ export default function SettingsModal({
         <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50 px-3 pt-2 gap-1">
           {[
             { id: "appearance", label: "Tema, 3D & Background", icon: Palette },
+            { id: "video", label: "Link Video (Admin)", icon: Video },
             { id: "security", label: "Password & Keamanan", icon: Lock },
             { id: "dashboard", label: "Layout Dashboard", icon: LayoutGrid },
             { id: "document", label: "Format Form IATF", icon: FileText },
@@ -287,13 +293,83 @@ export default function SettingsModal({
         </div>
 
         <form onSubmit={handleSave} className="p-5 space-y-5 max-h-[72vh] overflow-y-auto">
+          {tab === "video" && (
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 text-xs text-amber-950">
+                Pengaturan ini <strong>hanya dapat diubah oleh Admin</strong>. Masukkan link video (YouTube, Shorts, atau link langsung <code>.mp4</code>) untuk ditampilkan pada bar <strong>INFO &amp; PENGUMUMAN TERBARU</strong> di bagian atas.
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Link Video Pengumuman / Info (Khusus Admin)
+                </label>
+                <input
+                  type="text"
+                  value={draft.videoChannelUrl || ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, videoChannelUrl: e.target.value })
+                  }
+                  placeholder="https://www.youtube.com/watch?v=... atau https://.../video.mp4"
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Judul Video / Pengumuman
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.videoChannelTitle || ""}
+                    onChange={(e) =>
+                      setDraft({ ...draft, videoChannelTitle: e.target.value })
+                    }
+                    placeholder="Pengumuman & Info Terbaru Internal"
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Keterangan Singkat
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.videoChannelDesc || ""}
+                    onChange={(e) =>
+                      setDraft({ ...draft, videoChannelDesc: e.target.value })
+                    }
+                    placeholder="Informasi resmi & panduan internal"
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Teks Bar INFO &amp; PENGUMUMAN TERBARU (1 Baris)
+                </label>
+                <input
+                  type="text"
+                  value={draft.announcementText || ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, announcementText: e.target.value })
+                  }
+                  placeholder="INFO & PENGUMUMAN TERBARU — Update penting & panduan internal PT Sino Indah Jaya, klik di sini untuk melihat!"
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                />
+              </div>
+            </div>
+          )}
+
           {tab === "appearance" && (
             <div className="space-y-5">
               {/* MODE EFEK 3D & ANIMASI */}
               <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-3 border border-cyan-400/25 shadow-md">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-300">
                   <Box className="w-4 h-4" />
-                  Mode Kedalaman 3D & Animasi Interaktif
+                  Mode Kedalaman 3D &amp; Animasi Interaktif
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {MOTION_MODES.map((m) => (
@@ -319,7 +395,7 @@ export default function SettingsModal({
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
                   <Sparkles className="w-4 h-4 text-blue-600" />
-                  Identitas Perusahaan, Nama Sistem & Simbol (Login, Dashboard & Menu)
+                  Identitas Perusahaan, Nama Sistem &amp; Simbol (Login, Dashboard &amp; Menu)
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -437,7 +513,7 @@ export default function SettingsModal({
                       Foto Background Halaman (Bebas Upload Foto Apa Saja)
                     </h4>
                     <p className="text-[11px] text-slate-600">
-                      Bisa memakai foto pabrik, pemandangan, arsitektur, atau gambar apa saja untuk halaman Login & Dashboard.
+                      Bisa memakai foto pabrik, pemandangan, arsitektur, atau gambar apa saja untuk halaman Login &amp; Dashboard.
                     </p>
                   </div>
                   <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs">
@@ -530,7 +606,7 @@ export default function SettingsModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Gaya Efek & Animasi Halaman
+                    Gaya Efek &amp; Animasi Halaman
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {BG_STYLES.map((bg) => (
@@ -698,7 +774,7 @@ export default function SettingsModal({
                     }
                     className="rounded border-slate-300"
                   />
-                  Tampilkan tombol "Reset" data di header Admin
+                  Tampilkan tombol &quot;Reset&quot; data di header Admin
                 </label>
               </div>
             </div>
@@ -774,7 +850,7 @@ export default function SettingsModal({
                     }
                     className="rounded border-slate-300"
                   />
-                  Tampilkan badge status sinkronisasi real-time ("Live") di header
+                  Tampilkan badge status sinkronisasi real-time (&quot;Live&quot;) di header
                 </label>
               </div>
             </div>
