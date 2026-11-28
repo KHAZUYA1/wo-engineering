@@ -12,6 +12,7 @@ import {
 import { db } from "./firebase";
 import FormPreviewModal from "./FormPreviewModal";
 import SettingsModal from "./SettingsModal";
+import MediaAnnouncementHub from "./MediaAnnouncementHub";
 import {
   ClipboardList,
   Plus,
@@ -2352,6 +2353,12 @@ export default function App() {
               })}
             </div>
           )}
+        
+          <MediaAnnouncementHub
+            db={db}
+            appId="wo-engineering"
+            currentUserName={formData?.requesterName || session?.name || ""}
+          />
         </main>
       </div>
 
