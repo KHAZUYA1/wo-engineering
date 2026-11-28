@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Printer,
@@ -48,7 +49,7 @@ function SignatureSlot({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !esignEnabled) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const w = Math.max(60, Math.floor(rect.width || 120));
@@ -136,21 +137,14 @@ function SignatureSlot({
             className="w-full h-full touch-none cursor-crosshair bg-sky-50/40 no-print"
           />
           {signatureData && (
-            <>
-              <img
-                src={signatureData}
-                alt="TTD Elektronik"
-                className="hidden print:block w-full h-full object-contain pointer-events-none"
-              />
-              <button
-                type="button"
-                onClick={() => onChangeSignature(slotKey, "")}
-                className="no-print absolute top-0.5 right-0.5 px-1.5 py-0.5 text-[9px] rounded bg-white/90 hover:bg-rose-50 text-rose-700 border border-slate-300 cursor-pointer"
-                title="Hapus TTD ini"
-              >
-                Hapus
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => onChangeSignature(slotKey, "")}
+              className="no-print absolute top-0.5 right-0.5 px-1.5 py-0.5 text-[9px] rounded bg-white/90 hover:bg-rose-50 text-rose-700 border border-slate-300 cursor-pointer"
+              title="Hapus TTD ini"
+            >
+              Hapus
+            </button>
           )}
         </>
       ) : signatureData ? (
@@ -209,15 +203,31 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
   const [signatures, setSignatures] = useState({});
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [signedBy, setSignedBy] = useState(
-    ticket.divisionHeadSignedBy ||
-      ticket.reqGm ||
-      ticket.reqManager ||
-      ticket.reqChief ||
-      ticket.reqSupervisor ||
-      "",
-  );
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const [printPreviewUrl, setPrintPreviewUrl] = useState("");
+  const [signedBy, setSignedBy] = useState("");
   const printAreaRef = useRef(null);
+
+  useEffect(() => {
+    setPrintPreviewUrl("");
+    setSignatures({});
+    setSignedBy(
+      ticket?.divisionHeadSignedBy ||
+        ticket?.reqGm ||
+        ticket?.reqManager ||
+        ticket?.reqChief ||
+        ticket?.reqSupervisor ||
+        "",
+    );
+  }, [ticket]);
+
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("wo-is-printing");
+    };
+  }, []);
+
+  if (!ticket) return null;
 
   const docNumber = settings?.docNumber || "FM-IT-SOP-01-01";
   const companyName = settings?.companyName || "PT SINO INDAH JAYA";
@@ -275,6 +285,166 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
       }
     );
   });
+
+  const renderSheetCanvas = async (sheetEl) => {
+    await new Promise((r) => setTimeout(r, 120));
+
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    const colorCtx = document.createElement("canvas").getContext("2d");
+    const colorFnRegex =
+      /(?:oklab|oklch|color-mix|lab|lch)\(\s*[^()]*(?:\([^()]*\)[^()]*)*\)/gi;
+
+    const replaceModernColors = (cssText, fallback = "rgb(0, 0, 0)") => {
+      if (typeof cssText !== "string") return cssText;
+      return cssText.replace(colorFnRegex, (match) => {
+        try {
+          colorCtx.fillStyle = fallback;
+          colorCtx.fillStyle = match;
+          const res = colorCtx.fillStyle;
+          return colorFnRegex.test(res) ? fallback : res;
+        } catch {
+          return fallback;
+        }
+      });
+    };
+
+    return html2canvas(sheetEl, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      ignoreElements: (el) => el.classList?.contains("no-print"),
+      onclone: (clonedDoc) => {
+        clonedDoc.querySelectorAll("style").forEach((styleTag) => {
+          if (styleTag.textContent) {
+            styleTag.textContent = replaceModernColors(
+              styleTag.textContent,
+              "rgb(0, 0, 0)",
+            );
+          }
+        });
+
+        clonedDoc
+          .querySelectorAll("link[rel='stylesheet']")
+          .forEach((linkTag) => {
+            try {
+              const sheet = Array.from(document.styleSheets).find(
+                (s) =>
+                  s.href &&
+                  linkTag.href &&
+                  s.href.includes(linkTag.getAttribute("href")),
+              );
+              if (sheet && sheet.cssRules) {
+                const rulesText = Array.from(sheet.cssRules)
+                  .map((rule) =>
+                    replaceModernColors(rule.cssText, "rgb(0, 0, 0)"),
+                  )
+                  .join("\n");
+                const cleanStyle = clonedDoc.createElement("style");
+                cleanStyle.textContent = rulesText;
+                linkTag.replaceWith(cleanStyle);
+              }
+            } catch {
+              // Abaikan stylesheet lintas origin
+            }
+          });
+
+        clonedDoc.querySelectorAll("[style]").forEach((el) => {
+          const rawStyle = el.getAttribute("style");
+          if (rawStyle) {
+            el.setAttribute(
+              "style",
+              replaceModernColors(rawStyle, "rgb(0, 0, 0)"),
+            );
+          }
+        });
+
+        const clonedSheet = clonedDoc.querySelector(".wo-sheet");
+        if (clonedSheet) {
+          clonedSheet.classList.remove("leading-tight");
+          clonedSheet.style.width = "794px";
+          clonedSheet.style.minWidth = "794px";
+          clonedSheet.style.maxWidth = "794px";
+          clonedSheet.style.margin = "0 auto";
+          clonedSheet.style.backgroundColor = "#ffffff";
+          clonedSheet.style.color = "#000000";
+          clonedSheet.style.lineHeight = "1.35";
+
+          clonedSheet.querySelectorAll(":scope > div").forEach((divEl) => {
+            if (!divEl.querySelector("table")) {
+              divEl.style.lineHeight = "1.35";
+              divEl.style.paddingTop = "4px";
+              divEl.style.paddingBottom = "4px";
+              divEl.style.color = "#000000";
+            }
+          });
+
+          clonedSheet.querySelectorAll("[class*='emerald']").forEach((hdr) => {
+            hdr.style.backgroundColor = "#d1fae5";
+            if (hdr.tagName === "TH" || hdr.tagName === "TD") {
+              hdr.style.color = "#000000";
+            }
+          });
+
+          clonedSheet.querySelectorAll("[class*='bg-slate']").forEach((hdr) => {
+            hdr.style.backgroundColor = "#f1f5f9";
+            if (hdr.tagName === "TH" || hdr.tagName === "TD") {
+              hdr.style.color = "#000000";
+            }
+          });
+
+          clonedSheet.querySelectorAll(".wo-tickbox").forEach((box) => {
+            box.style.display = "inline-flex";
+            box.style.alignItems = "center";
+            box.style.justifyContent = "center";
+            box.style.verticalAlign = "middle";
+            box.style.lineHeight = "0";
+            box.style.paddingTop = "0";
+            box.style.paddingBottom = "0";
+          });
+
+          clonedSheet.querySelectorAll("th, td").forEach((cell) => {
+            const isDescCell =
+              cell.closest("tbody tr.h-16, tbody tr.h-20") !== null;
+            cell.style.lineHeight = "1.3";
+            cell.style.verticalAlign = isDescCell ? "top" : "middle";
+            cell.style.paddingTop = isDescCell ? "5px" : "4px";
+            cell.style.paddingBottom = isDescCell ? "7px" : "5px";
+
+            if (
+              !isDescCell &&
+              !cell.querySelector("img, canvas, svg") &&
+              cell.childNodes.length > 0
+            ) {
+              const wrapper = clonedDoc.createElement("div");
+              wrapper.style.transform = "translateY(-2.5px)";
+              wrapper.style.lineHeight = "1.3";
+              while (cell.firstChild) {
+                wrapper.appendChild(cell.firstChild);
+              }
+              cell.appendChild(wrapper);
+            }
+          });
+        }
+
+        const origCanvases = sheetEl.querySelectorAll("canvas");
+        const cloneCanvases = clonedSheet?.querySelectorAll("canvas") || [];
+        origCanvases.forEach((orig, idx) => {
+          const target = cloneCanvases[idx];
+          if (target) {
+            const ctx = target.getContext("2d");
+            target.width = orig.width;
+            target.height = orig.height;
+            ctx?.drawImage(orig, 0, 0);
+          }
+        });
+      },
+    });
+  };
 
   // 1. DOWNLOAD EXCEL (.xlsx) SIMPLE, RAPI & MEMPERTAHANKAN ATURAN TTD
   const handleDownloadExcel = async () => {
@@ -353,7 +523,7 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
         }
       };
 
-      // --- 1. KOP STANDAR IATF (TETAP SAMA) ---
+      // --- 1. KOP STANDAR IATF ---
       const hasCustomLogo =
         settings?.brandSymbol === "custom" && settings?.customLogoDataUrl;
 
@@ -856,160 +1026,7 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
 
     setIsExportingPdf(true);
     try {
-      await new Promise((r) => setTimeout(r, 120));
-
-      const colorCtx = document.createElement("canvas").getContext("2d");
-      const colorFnRegex =
-        /(?:oklab|oklch|color-mix|lab|lch)\(\s*[^()]*(?:\([^()]*\)[^()]*)*\)/gi;
-
-      const replaceModernColors = (cssText, fallback = "rgb(0, 0, 0)") => {
-        if (typeof cssText !== "string") return cssText;
-        return cssText.replace(colorFnRegex, (match) => {
-          try {
-            colorCtx.fillStyle = fallback;
-            colorCtx.fillStyle = match;
-            const res = colorCtx.fillStyle;
-            return colorFnRegex.test(res) ? fallback : res;
-          } catch {
-            return fallback;
-          }
-        });
-      };
-
-      const canvas = await html2canvas(sheetEl, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        ignoreElements: (el) => el.classList?.contains("no-print"),
-        onclone: (clonedDoc) => {
-          clonedDoc.querySelectorAll("style").forEach((styleTag) => {
-            if (styleTag.textContent) {
-              styleTag.textContent = replaceModernColors(
-                styleTag.textContent,
-                "rgb(0, 0, 0)",
-              );
-            }
-          });
-
-          clonedDoc
-            .querySelectorAll("link[rel='stylesheet']")
-            .forEach((linkTag) => {
-              try {
-                const sheet = Array.from(document.styleSheets).find(
-                  (s) =>
-                    s.href &&
-                    linkTag.href &&
-                    s.href.includes(linkTag.getAttribute("href")),
-                );
-                if (sheet && sheet.cssRules) {
-                  const rulesText = Array.from(sheet.cssRules)
-                    .map((rule) =>
-                      replaceModernColors(rule.cssText, "rgb(0, 0, 0)"),
-                    )
-                    .join("\n");
-                  const cleanStyle = clonedDoc.createElement("style");
-                  cleanStyle.textContent = rulesText;
-                  linkTag.replaceWith(cleanStyle);
-                }
-              } catch {
-                // Abaikan stylesheet lintas origin
-              }
-            });
-
-          clonedDoc.querySelectorAll("[style]").forEach((el) => {
-            const rawStyle = el.getAttribute("style");
-            if (rawStyle) {
-              el.setAttribute(
-                "style",
-                replaceModernColors(rawStyle, "rgb(0, 0, 0)"),
-              );
-            }
-          });
-
-          const clonedSheet = clonedDoc.querySelector(".wo-sheet");
-          if (clonedSheet) {
-            clonedSheet.classList.remove("leading-tight");
-            clonedSheet.style.width = "794px";
-            clonedSheet.style.minWidth = "794px";
-            clonedSheet.style.maxWidth = "794px";
-            clonedSheet.style.margin = "0 auto";
-            clonedSheet.style.backgroundColor = "#ffffff";
-            clonedSheet.style.color = "#000000";
-            clonedSheet.style.lineHeight = "1.35";
-
-            clonedSheet.querySelectorAll(":scope > div").forEach((divEl) => {
-              if (!divEl.querySelector("table")) {
-                divEl.style.lineHeight = "1.35";
-                divEl.style.paddingTop = "4px";
-                divEl.style.paddingBottom = "4px";
-                divEl.style.color = "#000000";
-              }
-            });
-
-            clonedSheet.querySelectorAll("[class*='emerald']").forEach((hdr) => {
-              hdr.style.backgroundColor = "#d1fae5";
-              if (hdr.tagName === "TH" || hdr.tagName === "TD") {
-                hdr.style.color = "#000000";
-              }
-            });
-
-            clonedSheet.querySelectorAll("[class*='bg-slate']").forEach((hdr) => {
-              hdr.style.backgroundColor = "#f1f5f9";
-              if (hdr.tagName === "TH" || hdr.tagName === "TD") {
-                hdr.style.color = "#000000";
-              }
-            });
-
-            clonedSheet.querySelectorAll(".wo-tickbox").forEach((box) => {
-              box.style.display = "inline-flex";
-              box.style.alignItems = "center";
-              box.style.justifyContent = "center";
-              box.style.verticalAlign = "middle";
-              box.style.lineHeight = "0";
-              box.style.paddingTop = "0";
-              box.style.paddingBottom = "0";
-            });
-
-            clonedSheet.querySelectorAll("th, td").forEach((cell) => {
-              const isDescCell =
-                cell.closest("tbody tr.h-16, tbody tr.h-20") !== null;
-              cell.style.lineHeight = "1.3";
-              cell.style.verticalAlign = isDescCell ? "top" : "middle";
-              cell.style.paddingTop = isDescCell ? "5px" : "4px";
-              cell.style.paddingBottom = isDescCell ? "7px" : "5px";
-
-              if (
-                !isDescCell &&
-                !cell.querySelector("img, canvas, svg") &&
-                cell.childNodes.length > 0
-              ) {
-                const wrapper = clonedDoc.createElement("div");
-                wrapper.style.transform = "translateY(-2.5px)";
-                wrapper.style.lineHeight = "1.3";
-                while (cell.firstChild) {
-                  wrapper.appendChild(cell.firstChild);
-                }
-                cell.appendChild(wrapper);
-              }
-            });
-          }
-
-          const origCanvases = sheetEl.querySelectorAll("canvas");
-          const cloneCanvases = clonedSheet?.querySelectorAll("canvas") || [];
-          origCanvases.forEach((orig, idx) => {
-            const target = cloneCanvases[idx];
-            if (target) {
-              const ctx = target.getContext("2d");
-              target.width = orig.width;
-              target.height = orig.height;
-              ctx?.drawImage(orig, 0, 0);
-            }
-          });
-        },
-      });
-
+      const canvas = await renderSheetCanvas(sheetEl);
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -1055,91 +1072,117 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
     }
   };
 
-  // 3. PRINT FORM LANGSUNG DI HALAMAN AKTIF
-  const handlePrintDirect = () => {
-    document.body.classList.add("wo-printing-active");
-    setTimeout(() => {
+  // 3. PRINT FORM SAMA PERSIS DENGAN HASIL PDF
+  const handlePrintDirect = async () => {
+    const sheetEl = printAreaRef.current;
+    if (!sheetEl) {
       window.print();
-      setTimeout(() => {
-        document.body.classList.remove("wo-printing-active");
-      }, 300);
-    }, 100);
+      return;
+    }
+
+    setIsPreparingPrint(true);
+    try {
+      const canvas = await renderSheetCanvas(sheetEl);
+      const imgUrl = canvas.toDataURL("image/png");
+      setPrintPreviewUrl(imgUrl);
+
+      const imgEl = new Image();
+      imgEl.src = imgUrl;
+      if (imgEl.decode) {
+        await imgEl.decode().catch(() => {});
+      }
+
+      document.body.classList.add("wo-is-printing");
+
+      const cleanup = () => {
+        document.body.classList.remove("wo-is-printing");
+        window.removeEventListener("afterprint", cleanup);
+      };
+      window.addEventListener("afterprint", cleanup);
+
+      await new Promise((r) => setTimeout(r, 120));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.print();
+          setTimeout(() => {
+            cleanup();
+            setIsPreparingPrint(false);
+          }, 1000);
+        });
+      });
+    } catch (err) {
+      console.error("Gagal menyiapkan print:", err);
+      document.body.classList.remove("wo-is-printing");
+      setIsPreparingPrint(false);
+      window.print();
+    }
   };
 
   const hasAnySignature = Object.keys(signatures).length > 0;
 
   return (
-    <div className="wo-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs overflow-y-auto flex items-start justify-center p-2 sm:p-5 print:static print:inset-auto print:p-0 print:bg-white print:block">
+    <div className="wo-modal-backdrop fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs overflow-y-auto flex items-start justify-center p-2 sm:p-5">
       <style>{`
+        #wo-print-snapshot {
+          display: none;
+        }
         @media print {
           @page {
             size: A4 portrait;
-            margin: 4mm;
+            margin: 5mm;
           }
-          body.wo-printing-active > *:not(.wo-modal-backdrop) {
-            display: none !important;
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           html, body {
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            min-height: 100% !important;
+            height: auto !important;
             overflow: visible !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
           }
-          .wo-modal-backdrop {
-            position: static !important;
-            inset: auto !important;
-            overflow: visible !important;
-            background: #ffffff !important;
-            padding: 0 !important;
-            margin: 0 auto !important;
-            width: 100% !important;
-            min-height: 97vh !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            z-index: auto !important;
-          }
-          .wo-print-root {
-            position: static !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: auto !important;
-            box-shadow: none !important;
-            border: none !important;
-            overflow: visible !important;
-            background: #ffffff !important;
-          }
-          .wo-sheet-scroll {
-            overflow: visible !important;
-            padding: 0 !important;
-            margin: auto !important;
-            width: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: #ffffff !important;
-          }
-          .no-print {
+          body.wo-is-printing > *:not(#wo-print-snapshot) {
             display: none !important;
           }
-          .wo-sheet {
+          #wo-print-snapshot {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             width: 100% !important;
-            min-width: 0 !important;
+            min-height: 95vh !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          #wo-print-snapshot img {
+            display: block !important;
+            opacity: 1 !important;
             max-width: 100% !important;
+            max-height: 282mm !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
             margin: auto !important;
-            box-shadow: none !important;
-            border: 1.5px solid #000 !important;
-            padding: 6px !important;
-            font-size: 9.5px !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
       `}</style>
 
-      <div className="wo-print-root m-auto bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-200 overflow-hidden print:rounded-none print:border-0 print:shadow-none">
+      {printPreviewUrl &&
+        createPortal(
+          <div id="wo-print-snapshot">
+            <img
+              src={printPreviewUrl}
+              alt={`Print Work Order ${ticket.id || ""}`}
+            />
+          </div>,
+          document.body,
+        )}
+
+      <div className="wo-modal-card m-auto bg-white rounded-2xl max-w-5xl w-full shadow-2xl border border-slate-200 overflow-hidden">
         {/* Toolbar Preview */}
         <div className="no-print bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10">
           <div>
@@ -1205,10 +1248,11 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
             <button
               type="button"
               onClick={handlePrintDirect}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer shadow-sm"
+              disabled={isPreparingPrint || isExportingPdf}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer shadow-sm"
             >
               <Printer className="w-4 h-4" />
-              Print Form
+              {isPreparingPrint ? "Menyiapkan Print..." : "Print Form"}
             </button>
 
             <button
@@ -1238,12 +1282,12 @@ export default function FormPreviewModal({ ticket, settings, onClose }) {
         </div>
 
         {/* Lembar Form */}
-        <div className="wo-sheet-scroll p-3 sm:p-6 overflow-x-auto bg-slate-100/70 print:bg-white print:p-0">
+        <div className="wo-sheet-scroll p-3 sm:p-6 overflow-x-auto bg-slate-100/70">
           <div
             ref={printAreaRef}
             className="wo-sheet min-w-[780px] mx-auto bg-white text-black border-2 border-black p-3 text-[10px] leading-snug"
           >
-            {/* 1. KOP STANDAR IATF (TETAP SAMA) */}
+            {/* 1. KOP STANDAR IATF */}
             <table className="w-full border-collapse border border-black mb-2">
               <tbody>
                 <tr>
