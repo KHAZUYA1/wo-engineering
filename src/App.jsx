@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   collection,
@@ -43,6 +43,15 @@ import {
   Cpu,
   Factory,
   Activity,
+  Music,
+  Volume2,
+  VolumeX,
+  Upload,
+  Video,
+  Edit3,
+  Undo2,
+  Play,
+  Square,
 } from "lucide-react";
 
 const DEFAULT_DEPARTMENTS = [
@@ -99,6 +108,11 @@ const DEFAULT_SETTINGS = {
   loginSubtitle:
     "Isi Surat Permintaan Pekerjaan (FM-IT-SOP-01-01) langsung di sistem, download/cetak PDF untuk tanda tangan manual, dan pantau antrian Engineering secara real-time di PC maupun HP.",
   announcementText: "",
+  videoChannelTitle: "Channel Info, Pengumuman, Tutorial & Promo",
+  videoChannelDesc:
+    "Putar video informasi pabrik, panduan SOP, tutorial sistem, maupun iklan/pengumuman internal.",
+  videoChannelUrl: "",
+  videoChannelFileUrl: "",
   cardDensity: "comfortable",
   showStatsCards: true,
   showWorkflowHint: true,
@@ -118,76 +132,76 @@ const DEFAULT_SETTINGS = {
 
 const THEME_STYLES = {
   slate: {
-    gradientBg: "bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950",
+    gradientBg: "bg-gradient-to-br from-slate-950 via-teal-950 to-sky-950",
     solidBg: "bg-slate-950",
     header: "bg-slate-950/85",
     accentBtn:
-      "bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-lg shadow-cyan-500/25",
-    subText: "text-cyan-300",
-    badgeBox: "bg-gradient-to-br from-blue-500 to-cyan-400",
-    glowA: "bg-cyan-500/25",
-    glowB: "bg-blue-600/25",
-    particle: "bg-cyan-300/40",
+      "bg-gradient-to-r from-teal-500 via-cyan-500 to-sky-500 hover:from-teal-400 hover:to-sky-400 shadow-lg shadow-teal-500/20",
+    subText: "text-teal-300",
+    badgeBox: "bg-gradient-to-br from-teal-400 via-cyan-500 to-sky-600",
+    glowA: "bg-teal-400/20",
+    glowB: "bg-sky-500/20",
+    particle: "bg-teal-200/35",
   },
   indigo: {
-    gradientBg: "bg-gradient-to-br from-indigo-950 via-slate-950 to-fuchsia-950",
+    gradientBg: "bg-gradient-to-br from-indigo-950 via-teal-950 to-violet-950",
     solidBg: "bg-indigo-950",
     header: "bg-indigo-950/85",
     accentBtn:
-      "bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 shadow-lg shadow-indigo-500/25",
-    subText: "text-indigo-300",
-    badgeBox: "bg-gradient-to-br from-indigo-500 to-cyan-400",
-    glowA: "bg-indigo-500/25",
-    glowB: "bg-fuchsia-500/20",
-    particle: "bg-indigo-300/40",
+      "bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-500 hover:from-indigo-400 hover:to-teal-400 shadow-lg shadow-indigo-500/20",
+    subText: "text-indigo-200",
+    badgeBox: "bg-gradient-to-br from-indigo-400 via-violet-500 to-teal-400",
+    glowA: "bg-indigo-400/20",
+    glowB: "bg-teal-400/20",
+    particle: "bg-indigo-200/35",
   },
   blue: {
-    gradientBg: "bg-gradient-to-br from-blue-950 via-slate-950 to-sky-950",
-    solidBg: "bg-blue-950",
-    header: "bg-blue-950/85",
+    gradientBg: "bg-gradient-to-br from-sky-950 via-blue-950 to-emerald-950",
+    solidBg: "bg-sky-950",
+    header: "bg-sky-950/85",
     accentBtn:
-      "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 shadow-lg shadow-sky-500/25",
-    subText: "text-sky-300",
-    badgeBox: "bg-gradient-to-br from-sky-400 to-blue-600",
-    glowA: "bg-sky-500/25",
-    glowB: "bg-blue-500/20",
-    particle: "bg-sky-300/40",
+      "bg-gradient-to-r from-sky-500 via-blue-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 shadow-lg shadow-sky-500/20",
+    subText: "text-sky-200",
+    badgeBox: "bg-gradient-to-br from-sky-400 via-blue-500 to-emerald-400",
+    glowA: "bg-sky-400/20",
+    glowB: "bg-emerald-400/20",
+    particle: "bg-sky-200/35",
   },
   emerald: {
-    gradientBg: "bg-gradient-to-br from-emerald-950 via-slate-950 to-teal-950",
+    gradientBg: "bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950",
     solidBg: "bg-emerald-950",
     header: "bg-emerald-950/85",
     accentBtn:
-      "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-500/25",
-    subText: "text-emerald-300",
-    badgeBox: "bg-gradient-to-br from-emerald-400 to-teal-500",
-    glowA: "bg-emerald-500/25",
-    glowB: "bg-teal-500/20",
-    particle: "bg-emerald-300/40",
+      "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 shadow-lg shadow-emerald-500/20",
+    subText: "text-emerald-200",
+    badgeBox: "bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-400",
+    glowA: "bg-emerald-400/20",
+    glowB: "bg-cyan-400/20",
+    particle: "bg-emerald-200/35",
   },
   amber: {
-    gradientBg: "bg-gradient-to-br from-stone-950 via-zinc-950 to-amber-950",
+    gradientBg: "bg-gradient-to-br from-stone-950 via-amber-950 to-teal-950",
     solidBg: "bg-stone-950",
     header: "bg-stone-950/85",
     accentBtn:
-      "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 shadow-lg shadow-amber-500/25",
-    subText: "text-amber-300",
-    badgeBox: "bg-gradient-to-br from-amber-400 to-orange-500",
-    glowA: "bg-amber-500/20",
-    glowB: "bg-orange-500/20",
-    particle: "bg-amber-300/40",
+      "bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 hover:from-amber-400 hover:to-teal-400 shadow-lg shadow-amber-500/20",
+    subText: "text-amber-200",
+    badgeBox: "bg-gradient-to-br from-amber-400 via-orange-500 to-teal-400",
+    glowA: "bg-amber-400/18",
+    glowB: "bg-teal-400/18",
+    particle: "bg-amber-200/35",
   },
   zinc: {
-    gradientBg: "bg-gradient-to-br from-zinc-950 via-neutral-950 to-slate-900",
+    gradientBg: "bg-gradient-to-br from-zinc-950 via-slate-900 to-teal-950",
     solidBg: "bg-zinc-950",
     header: "bg-zinc-950/85",
     accentBtn:
-      "bg-gradient-to-r from-zinc-700 to-slate-600 hover:from-zinc-600 hover:to-slate-500 shadow-lg shadow-black/35",
-    subText: "text-zinc-300",
-    badgeBox: "bg-gradient-to-br from-zinc-600 to-slate-500",
-    glowA: "bg-slate-400/15",
-    glowB: "bg-zinc-500/15",
-    particle: "bg-slate-300/35",
+      "bg-gradient-to-r from-teal-600 via-sky-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 shadow-lg shadow-teal-600/20",
+    subText: "text-teal-200",
+    badgeBox: "bg-gradient-to-br from-teal-500 via-sky-500 to-indigo-500",
+    glowA: "bg-teal-400/15",
+    glowB: "bg-indigo-400/15",
+    particle: "bg-teal-200/30",
   },
 };
 
@@ -196,8 +210,8 @@ const PRIORITY_META = {
     label: "P1 - Critical / Urgent",
     short: "P1",
     rank: 1,
-    badge: "bg-red-100 text-red-800 border-red-300",
-    dot: "bg-red-600",
+    badge: "bg-rose-100 text-rose-800 border-rose-300",
+    dot: "bg-rose-600",
   },
   P2: {
     label: "P2 - High Priority",
@@ -210,14 +224,14 @@ const PRIORITY_META = {
     label: "P3 - Normal (FIFO)",
     short: "P3",
     rank: 3,
-    badge: "bg-slate-100 text-slate-700 border-slate-300",
-    dot: "bg-slate-500",
+    badge: "bg-teal-50 text-teal-800 border-teal-200",
+    dot: "bg-teal-500",
   },
 };
 
 const STATUS_META = {
   "Waiting List": {
-    badge: "bg-blue-50 text-blue-700 border-blue-200",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
     icon: Clock,
   },
   "In Progress": {
@@ -225,7 +239,7 @@ const STATUS_META = {
     icon: Wrench,
   },
   "Pending Material": {
-    badge: "bg-orange-50 text-orange-700 border-orange-200",
+    badge: "bg-amber-50 text-amber-800 border-amber-200",
     icon: Package,
   },
   Done: {
@@ -235,14 +249,51 @@ const STATUS_META = {
 };
 
 const PARTICLES = [
-  { left: "10%", top: "18%", size: "w-1.5 h-1.5", delay: "0s", dur: "7s" },
-  { left: "26%", top: "72%", size: "w-2 h-2", delay: "1.5s", dur: "9s" },
-  { left: "52%", top: "24%", size: "w-1.5 h-1.5", delay: "2.2s", dur: "8s" },
-  { left: "74%", top: "64%", size: "w-2 h-2", delay: "0.8s", dur: "10s" },
-  { left: "88%", top: "30%", size: "w-1.5 h-1.5", delay: "3s", dur: "7.5s" },
+  { left: "12%", top: "20%", size: "w-1.5 h-1.5", delay: "0s", dur: "9s" },
+  { left: "30%", top: "70%", size: "w-2 h-2", delay: "1.8s", dur: "11s" },
+  { left: "56%", top: "22%", size: "w-1.5 h-1.5", delay: "2.5s", dur: "10s" },
+  { left: "78%", top: "62%", size: "w-2 h-2", delay: "1s", dur: "12s" },
+  { left: "90%", top: "32%", size: "w-1.5 h-1.5", delay: "3.2s", dur: "9.5s" },
+];
+
+const BUILTIN_TRACKS = [
+  {
+    id: "builtin-1",
+    name: "Sejuk Pagi (Synth)",
+    notes: [261.63, 329.63, 392.0, 493.88, 523.25, 392.0],
+    tempoMs: 1150,
+  },
+  {
+    id: "builtin-2",
+    name: "Langit Teduh (Synth)",
+    notes: [220.0, 261.63, 329.63, 440.0, 329.63, 293.66],
+    tempoMs: 1300,
+  },
+  {
+    id: "builtin-3",
+    name: "Fokus Tenang (Synth)",
+    notes: [293.66, 369.99, 440.0, 587.33, 440.0, 369.99],
+    tempoMs: 1050,
+  },
 ];
 
 const COLLECTION_NAME = "work_orders";
+
+function getEmbeddableVideoInfo(rawUrl) {
+  const url = (rawUrl || "").trim();
+  if (!url) return { type: "none", src: "" };
+
+  const ytMatch =
+    url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/);
+  if (ytMatch?.[1]) {
+    return {
+      type: "iframe",
+      src: `https://www.youtube.com/embed/${ytMatch[1]}`,
+    };
+  }
+
+  return { type: "video", src: url };
+}
 
 function BrandMark({ settings, iconSizeClass = "w-6 h-6" }) {
   if (settings.brandSymbol === "custom" && settings.customLogoDataUrl) {
@@ -267,62 +318,16 @@ function BrandMark({ settings, iconSizeClass = "w-6 h-6" }) {
   return <IconComp className={iconSizeClass} />;
 }
 
-// Kartu 3D ringan: tilt halus di desktop & depth lift di mobile
-function Tilt3DCard({ children, className = "", motionMode = "3d-dynamic" }) {
-  const [tilt, setTilt] = useState({ rx: 0, ry: 0, sx: 50, sy: 50 });
-
-  const handleMouseMove = (e) => {
-    if (motionMode !== "3d-dynamic") return;
-    if (typeof window !== "undefined" && window.innerWidth < 768) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    setTilt({
-      rx: (0.5 - py) * 7,
-      ry: (px - 0.5) * 9,
-      sx: Math.round(px * 100),
-      sy: Math.round(py * 100),
-    });
-  };
-
-  const handleMouseLeave = () => {
-    setTilt({ rx: 0, ry: 0, sx: 50, sy: 50 });
-  };
-
-  const is3D = motionMode === "3d-dynamic";
-  const hasTilt = is3D && (tilt.rx !== 0 || tilt.ry !== 0);
-
+function CalmCard({ children, className = "", motionMode = "3d-dynamic" }) {
   return (
-    <div style={{ perspective: is3D ? "1100px" : undefined }}>
-      <div
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={
-          is3D
-            ? {
-                transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateZ(${
-                  hasTilt ? "8px" : "0px"
-                })`,
-                transformStyle: "preserve-3d",
-              }
-            : undefined
-        }
-        className={`relative overflow-hidden transition-all duration-200 ease-out ${
-          motionMode === "lite"
-            ? ""
-            : "hover:-translate-y-0.5 hover:shadow-xl"
-        } ${className}`}
-      >
-        {is3D && hasTilt && (
-          <div
-            className="pointer-events-none absolute inset-0 opacity-35 transition-opacity duration-200"
-            style={{
-              background: `radial-gradient(circle at ${tilt.sx}% ${tilt.sy}%, rgba(56,189,248,0.26), transparent 62%)`,
-            }}
-          />
-        )}
-        <div className="relative z-10">{children}</div>
-      </div>
+    <div
+      className={`relative overflow-hidden transition-all duration-300 ease-out ${
+        motionMode === "lite"
+          ? ""
+          : "hover:shadow-xl hover:border-teal-300/70"
+      } ${className}`}
+    >
+      <div className="relative z-10">{children}</div>
     </div>
   );
 }
@@ -339,42 +344,34 @@ function FuturisticBackdrop({ activeTheme, settings }) {
       <style>{`
         @keyframes floatGlowA {
           0%, 100% { transform: translate3d(0px, 0px, 0px) scale(1); }
-          50% { transform: translate3d(42px, 28px, 0px) scale(1.12); }
+          50% { transform: translate3d(26px, 18px, 0px) scale(1.06); }
         }
         @keyframes floatGlowB {
-          0%, 100% { transform: translate3d(0px, 0px, 0px) scale(1.06); }
-          50% { transform: translate3d(-38px, -32px, 0px) scale(0.95); }
-        }
-        @keyframes scanBeam {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100vh); }
+          0%, 100% { transform: translate3d(0px, 0px, 0px) scale(1.04); }
+          50% { transform: translate3d(-24px, -18px, 0px) scale(0.98); }
         }
         @keyframes particleRise {
-          0% { transform: translateY(16px) scale(0.8); opacity: 0; }
-          40% { opacity: 0.85; }
-          100% { transform: translateY(-34px) scale(1.15); opacity: 0; }
+          0% { transform: translateY(10px) scale(0.9); opacity: 0; }
+          45% { opacity: 0.65; }
+          100% { transform: translateY(-22px) scale(1.05); opacity: 0; }
         }
         .animate-glow-a {
-          animation: floatGlowA 11s ease-in-out infinite;
+          animation: floatGlowA 15s ease-in-out infinite;
           will-change: transform;
         }
         .animate-glow-b {
-          animation: floatGlowB 14s ease-in-out infinite;
-          will-change: transform;
-        }
-        .animate-scan-beam {
-          animation: scanBeam 9s linear infinite;
+          animation: floatGlowB 18s ease-in-out infinite;
           will-change: transform;
         }
         .animate-particle {
-          animation: particleRise var(--dur, 8s) ease-in-out var(--delay, 0s) infinite;
+          animation: particleRise var(--dur, 10s) ease-in-out var(--delay, 0s) infinite;
           will-change: transform, opacity;
         }
       `}</style>
 
       {settings.customBgImageDataUrl && (
         <div
-          className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat scale-105 transition-all duration-500 pointer-events-none"
+          className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat scale-102 transition-all duration-500 pointer-events-none"
           style={{
             backgroundImage: `url("${settings.customBgImageDataUrl}")`,
           }}
@@ -384,7 +381,7 @@ function FuturisticBackdrop({ activeTheme, settings }) {
       <div
         className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-300"
         style={{
-          backgroundColor: settings.customBgColor || "#030712",
+          backgroundColor: settings.customBgColor || "#04131c",
           opacity: settings.customBgImageDataUrl ? overlayOpacity : 0.45,
         }}
       />
@@ -415,16 +412,13 @@ function FuturisticBackdrop({ activeTheme, settings }) {
       {settings.bgStyle === "grid" && (
         <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
           <div
-            className="w-full h-full opacity-25"
+            className="w-full h-full opacity-20"
             style={{
               backgroundImage:
-                "linear-gradient(to right, rgba(56, 189, 248, 0.16) 1px, transparent 1px), linear-gradient(to bottom, rgba(56, 189, 248, 0.16) 1px, transparent 1px)",
-              backgroundSize: "34px 34px",
+                "linear-gradient(to right, rgba(45, 212, 191, 0.16) 1px, transparent 1px), linear-gradient(to bottom, rgba(45, 212, 191, 0.16) 1px, transparent 1px)",
+              backgroundSize: "38px 38px",
             }}
           />
-          {motionMode !== "lite" && (
-            <div className="w-full h-24 bg-gradient-to-b from-transparent via-cyan-400/15 to-transparent animate-scan-beam" />
-          )}
         </div>
       )}
     </>
@@ -469,6 +463,28 @@ export default function App() {
   const [dbError, setDbError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Musik Bebas (Built-in + File Lokal + URL/Playlist)
+  const [playlist, setPlaylist] = useState(BUILTIN_TRACKS);
+  const [selectedTrackId, setSelectedTrackId] = useState(BUILTIN_TRACKS[0].id);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.4);
+  const [customAudioUrl, setCustomAudioUrl] = useState("");
+  const [customAudioTitle, setCustomAudioTitle] = useState("");
+  const [showMusicPanel, setShowMusicPanel] = useState(false);
+
+  const audioCtxRef = useRef(null);
+  const noteTimerRef = useRef(null);
+  const stepRef = useRef(0);
+  const mediaAudioRef = useRef(null);
+
+  // Channel Video Info, Pengumuman, Tutorial & Iklan
+  const [showVideoPanel, setShowVideoPanel] = useState(false);
+  const [videoTitleDraft, setVideoTitleDraft] = useState("");
+  const [videoDescDraft, setVideoDescDraft] = useState("");
+  const [videoUrlDraft, setVideoUrlDraft] = useState("");
+  const [videoUploadedUrl, setVideoUploadedUrl] = useState("");
+
+  // Sesi Login
   const [session, setSession] = useState(null);
   const [loginRole, setLoginRole] = useState("user");
   const [loginName, setLoginName] = useState("");
@@ -482,7 +498,9 @@ export default function App() {
   const [filterPriority, setFilterPriority] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
 
+  // Buat / Edit Form Request WO
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingTicket, setEditingTicket] = useState(null);
   const [formData, setFormData] = useState({
     department: "PRODUKSI",
     requesterName: "",
@@ -500,6 +518,7 @@ export default function App() {
   });
   const [formError, setFormError] = useState("");
 
+  // Kelola WO Admin
   const [manageTicket, setManageTicket] = useState(null);
   const [manageTab, setManageTab] = useState("status");
   const [manageState, setManageState] = useState({
@@ -528,9 +547,156 @@ export default function App() {
 
   const [previewTicket, setPreviewTicket] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   const [notifBanner, setNotifBanner] = useState(null);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  const activeTrack = useMemo(
+    () => playlist.find((tr) => tr.id === selectedTrackId) || playlist[0],
+    [playlist, selectedTrackId],
+  );
+
+  useEffect(() => {
+    setVideoTitleDraft(
+      settings.videoChannelTitle || DEFAULT_SETTINGS.videoChannelTitle,
+    );
+    setVideoDescDraft(
+      settings.videoChannelDesc || DEFAULT_SETTINGS.videoChannelDesc,
+    );
+    setVideoUrlDraft(settings.videoChannelUrl || "");
+  }, [settings]);
+
+  // Pemutar audio file/URL maupun synth bawaan
+  useEffect(() => {
+    if (noteTimerRef.current) {
+      clearInterval(noteTimerRef.current);
+      noteTimerRef.current = null;
+    }
+
+    if (!musicPlaying || !activeTrack) {
+      if (mediaAudioRef.current) {
+        mediaAudioRef.current.pause();
+      }
+      return;
+    }
+
+    if (activeTrack.audioSrc) {
+      if (!mediaAudioRef.current) {
+        mediaAudioRef.current = new Audio();
+      }
+      if (mediaAudioRef.current.src !== activeTrack.audioSrc) {
+        mediaAudioRef.current.src = activeTrack.audioSrc;
+      }
+      mediaAudioRef.current.loop = true;
+      mediaAudioRef.current.volume = Math.min(1, Math.max(0.05, musicVolume));
+      mediaAudioRef.current.play().catch(() => {});
+      return;
+    }
+
+    if (mediaAudioRef.current) {
+      mediaAudioRef.current.pause();
+    }
+
+    const AudioCtx =
+      window.AudioContext || window.webkitAudioContext || null;
+    if (!AudioCtx) return;
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioCtx();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+
+    const playSoftNote = () => {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const freq = activeTrack.notes[stepRef.current % activeTrack.notes.length];
+      stepRef.current += 1;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+
+      const peak = Math.max(0.005, musicVolume * 0.08);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(peak, now + 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.5);
+    };
+
+    playSoftNote();
+    noteTimerRef.current = setInterval(playSoftNote, activeTrack.tempoMs || 1150);
+
+    return () => {
+      if (noteTimerRef.current) {
+        clearInterval(noteTimerRef.current);
+        noteTimerRef.current = null;
+      }
+    };
+  }, [musicPlaying, activeTrack, musicVolume]);
+
+  const handleUploadAudioFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    const id = `local-${Date.now()}`;
+    const newTrack = {
+      id,
+      name: file.name.replace(/\.[^/.]+$/, ""),
+      audioSrc: objectUrl,
+    };
+    setPlaylist((prev) => [newTrack, ...prev]);
+    setSelectedTrackId(id);
+    setMusicPlaying(true);
+  };
+
+  const handleAddAudioUrl = (e) => {
+    e.preventDefault();
+    const cleanUrl = customAudioUrl.trim();
+    if (!cleanUrl) return;
+    const id = `url-${Date.now()}`;
+    const label =
+      customAudioTitle.trim() || cleanUrl.split("/").pop() || "Audio Custom";
+    const newTrack = {
+      id,
+      name: label,
+      audioSrc: cleanUrl,
+    };
+    setPlaylist((prev) => [newTrack, ...prev]);
+    setSelectedTrackId(id);
+    setMusicPlaying(true);
+    setCustomAudioUrl("");
+    setCustomAudioTitle("");
+  };
+
+  const handleUploadChannelVideo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setVideoUploadedUrl(url);
+    if (!videoTitleDraft.trim()) {
+      setVideoTitleDraft(file.name.replace(/\.[^/.]+$/, ""));
+    }
+  };
+
+  const handleSaveChannelVideo = async () => {
+    const updated = {
+      ...settings,
+      videoChannelTitle:
+        videoTitleDraft.trim() || DEFAULT_SETTINGS.videoChannelTitle,
+      videoChannelDesc:
+        videoDescDraft.trim() || DEFAULT_SETTINGS.videoChannelDesc,
+      videoChannelUrl: videoUrlDraft.trim(),
+    };
+    await handleSaveSettings(updated);
+  };
 
   useEffect(() => {
     const settingsRef = doc(db, "settings", "wo_config");
@@ -690,6 +856,7 @@ export default function App() {
 
   const openCreateModal = () => {
     setFormError("");
+    setEditingTicket(null);
     setFormData({
       department:
         session?.role === "user"
@@ -709,6 +876,42 @@ export default function App() {
       description: "",
     });
     setIsCreateOpen(true);
+  };
+
+  const openEditUserTicket = (ticket) => {
+    setFormError("");
+    setEditingTicket(ticket);
+    setFormData({
+      department: ticket.department || "PRODUKSI",
+      requesterName: ticket.requesterName || "",
+      requesterNip: ticket.requesterNip || "",
+      section: ticket.section || "",
+      jobType: ticket.jobType || "Repair",
+      reqSupervisor: ticket.reqSupervisor || "",
+      reqChief: ticket.reqChief || "",
+      reqManager: ticket.reqManager || "",
+      reqGm: ticket.reqGm || "",
+      category: ticket.category || "Mechanical",
+      lineLocation: ticket.lineLocation || "",
+      photoDataUrl: ticket.photoDataUrl || "",
+      description: ticket.description || "",
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleWithdrawUserTicket = async (ticket) => {
+    setIsSubmitting(true);
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, ticket.id));
+      if (notifBanner?.ticket?.id === ticket.id) {
+        setNotifBanner(null);
+      }
+    } catch (err) {
+      console.error("Gagal menarik ulang form:", err);
+      alert("Gagal menarik ulang form. Periksa koneksi internet Anda.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePhotoUpload = (e) => {
@@ -748,6 +951,48 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
+      const cleanDesc = formData.description.trim();
+      const summaryTitle =
+        cleanDesc.length > 75 ? `${cleanDesc.slice(0, 75)}...` : cleanDesc;
+
+      if (editingTicket) {
+        const updatedFields = {
+          department: formData.department,
+          requesterName: formData.requesterName.trim(),
+          requesterNip: formData.requesterNip.trim(),
+          section: formData.section.trim() || formData.lineLocation.trim(),
+          jobType: formData.jobType,
+          reqSupervisor: formData.reqSupervisor.trim(),
+          reqChief: formData.reqChief.trim(),
+          reqManager: formData.reqManager.trim(),
+          reqGm: formData.reqGm.trim(),
+          divisionHeadSignedBy:
+            formData.reqGm.trim() ||
+            formData.reqManager.trim() ||
+            formData.reqChief.trim() ||
+            formData.reqSupervisor.trim() ||
+            "TTD Manual Pada Form Cetak",
+          title: summaryTitle,
+          category: formData.category,
+          lineLocation:
+            formData.lineLocation.trim() || formData.section.trim() || "-",
+          photoDataUrl: formData.photoDataUrl || "",
+          description: cleanDesc,
+        };
+
+        await updateDoc(doc(db, COLLECTION_NAME, editingTicket.id), updatedFields);
+        const updatedTicket = { ...editingTicket, ...updatedFields };
+        setIsCreateOpen(false);
+        setEditingTicket(null);
+        setPreviewTicket(updatedTicket);
+        setNotifBanner({
+          ticket: updatedTicket,
+          eventType: "NEW_WO",
+          message: `Revisi form ${updatedTicket.id} berhasil disimpan! Silakan Preview / Download PDF / Print ulang.`,
+        });
+        return;
+      }
+
       const now = new Date();
       const pad = (n) => String(n).padStart(2, "0");
       const dateStr = `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`;
@@ -767,10 +1012,6 @@ export default function App() {
       const nextNum = String(nextCount).padStart(3, "0");
       const prefix = settings.ticketPrefix || "WO";
       const ticketId = `${prefix}-${now.getFullYear()}-${nextNum}`;
-
-      const cleanDesc = formData.description.trim();
-      const summaryTitle =
-        cleanDesc.length > 75 ? `${cleanDesc.slice(0, 75)}...` : cleanDesc;
 
       const newTicket = {
         id: ticketId,
@@ -830,7 +1071,7 @@ export default function App() {
       setNotifBanner({
         ticket: newTicket,
         eventType: "NEW_WO",
-        message: `Form ${newTicket.id} terbit otomatis berurutan! Silakan Preview, Download PDF, atau Print untuk TTD manual sampai Division Head terkait.`,
+        message: `Form ${newTicket.id} terbit otomatis berurutan! Silakan Preview, Download PDF, atau Print untuk TTD manual.`,
       });
     } catch (err) {
       console.error("Gagal menyimpan WO:", err);
@@ -1102,154 +1343,235 @@ export default function App() {
   const isCustomLogoActive =
     settings.brandSymbol === "custom" && Boolean(settings.customLogoDataUrl);
 
+  const activeVideoSource = videoUploadedUrl || settings.videoChannelUrl || "";
+  const embedVideo = getEmbeddableVideoInfo(activeVideoSource);
+
+  const renderMusicBar = () => (
+    <div className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-xl px-2 py-1 text-xs">
+      <button
+        type="button"
+        onClick={() => setMusicPlaying((prev) => !prev)}
+        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-semibold transition cursor-pointer ${
+          musicPlaying
+            ? "bg-teal-400 text-slate-950"
+            : "bg-white/10 text-teal-200 hover:bg-white/20"
+        }`}
+        title={musicPlaying ? "Stop Musik" : "Putar Musik"}
+      >
+        {musicPlaying ? (
+          <Square className="w-3 h-3 fill-current" />
+        ) : (
+          <Play className="w-3 h-3 fill-current" />
+        )}
+        <span className="hidden sm:inline">
+          {musicPlaying ? "Stop" : "Musik"}
+        </span>
+      </button>
+
+      <select
+        value={selectedTrackId}
+        onChange={(e) => {
+          stepRef.current = 0;
+          setSelectedTrackId(e.target.value);
+          setMusicPlaying(true);
+        }}
+        className="bg-slate-900/90 text-teal-100 border border-white/15 rounded-lg px-2 py-1 text-[11px] max-w-[130px] sm:max-w-[165px] focus:outline-none cursor-pointer"
+        aria-label="Pilih musik dari daftar"
+      >
+        {playlist.map((tr) => (
+          <option key={tr.id} value={tr.id}>
+            {tr.name}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="button"
+        onClick={() => setShowMusicPanel((prev) => !prev)}
+        className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-teal-200 cursor-pointer"
+        title="Upload / Tambah Musik Bebas"
+      >
+        <Music className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
+  // Hak cipta diletakkan di bagian bawah web dashboard / login (bukan di dalam form cetak)
+  const renderFooter = () => (
+    <footer className="relative z-10 mt-10 border-t border-white/15 bg-slate-950/80 backdrop-blur-lg text-slate-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+        <span>
+          © Hak Cipta <strong>Yuda Pamungkas</strong> ·{" "}
+          <span className="text-teal-200 font-medium">
+            {settings.companyName}
+          </span>
+        </span>
+        <span className="text-slate-400 text-[11px]">
+          {settings.appTitle} · {settings.docNumber}
+        </span>
+      </div>
+    </footer>
+  );
+
   if (!session) {
     return (
       <div
-        className={`relative min-h-screen ${
+        className={`relative min-h-screen flex flex-col justify-between ${
           settings.bgStyle === "solid"
             ? activeTheme.solidBg
             : activeTheme.gradientBg
-        } flex items-center justify-center p-4 overflow-hidden`}
+        } overflow-x-hidden`}
       >
         <FuturisticBackdrop activeTheme={activeTheme} settings={settings} />
 
-        <div className="relative z-10 w-full max-w-lg">
-          <Tilt3DCard
-            motionMode={motionMode}
-            className="bg-white/92 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/60 ring-1 ring-cyan-400/30"
-          >
-            <div
-              className={`${activeTheme.header} backdrop-blur-md text-white p-5 sm:p-6 border-b border-white/10`}
+        <div className="relative z-10 flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg">
+            <CalmCard
+              motionMode={motionMode}
+              className="bg-white/94 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/70 ring-1 ring-teal-400/30"
             >
-              <div className="flex items-center gap-3.5">
-                <div
-                  className={`w-12 h-12 ${
-                    isCustomLogoActive
-                      ? "bg-white p-0"
-                      : `${activeTheme.badgeBox} p-2`
-                  } rounded-xl shrink-0 shadow-md overflow-hidden flex items-center justify-center ring-2 ring-cyan-300/35`}
-                >
-                  <BrandMark
-                    settings={settings}
-                    iconSizeClass="w-7 h-7 text-white"
-                  />
+              <div
+                className={`${activeTheme.header} backdrop-blur-md text-white p-5 sm:p-6 border-b border-white/10`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-teal-400/15 text-teal-200 border border-teal-300/30">
+                    Sejuk, Berwarna &amp; Hidup
+                  </span>
+                  {renderMusicBar()}
                 </div>
-                <div className="min-w-0">
-                  <p
-                    className={`text-[11px] uppercase tracking-wider ${activeTheme.subText} font-semibold truncate`}
+
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className={`w-12 h-12 ${
+                      isCustomLogoActive
+                        ? "bg-white p-0"
+                        : `${activeTheme.badgeBox} p-2`
+                    } rounded-xl shrink-0 shadow-md overflow-hidden flex items-center justify-center ring-2 ring-teal-300/35`}
                   >
-                    {settings.companyName} · {settings.docNumber}
-                  </p>
-                  <h1 className="text-lg sm:text-xl font-bold leading-snug">
-                    {settings.appTitle}
-                  </h1>
-                </div>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 mt-3 leading-relaxed">
-                {settings.loginSubtitle || DEFAULT_SETTINGS.loginSubtitle}
-              </p>
-            </div>
-
-            <div className="p-5 sm:p-6">
-              <div className="grid grid-cols-2 gap-2 bg-slate-100/90 p-1 rounded-xl mb-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginRole("user");
-                    setLoginError("");
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                    loginRole === "user"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <UserCheck className="w-4 h-4 shrink-0" />
-                  User Departemen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginRole("admin");
-                    setLoginError("");
-                  }}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                    loginRole === "admin"
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  Admin Engineering
-                </button>
-              </div>
-
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Nama Lengkap
-                  </label>
-                  <input
-                    type="text"
-                    value={loginName}
-                    onChange={(e) => setLoginName(e.target.value)}
-                    placeholder={
-                      loginRole === "admin"
-                        ? "Nama Admin Engineering"
-                        : "Nama pemohon / perwakilan departemen"
-                    }
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  />
-                </div>
-
-                {loginRole === "user" ? (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Departemen ({settings.departments.length} Departemen)
-                    </label>
-                    <select
-                      value={loginDept}
-                      onChange={(e) => setLoginDept(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    >
-                      {settings.departments.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Password / PIN Admin Engineering
-                    </label>
-                    <input
-                      type="password"
-                      value={loginPin}
-                      onChange={(e) => setLoginPin(e.target.value)}
-                      placeholder="Masukkan Password / PIN Admin"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    <BrandMark
+                      settings={settings}
+                      iconSizeClass="w-7 h-7 text-white"
                     />
                   </div>
-                )}
-
-                {loginError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-                    {loginError}
+                  <div className="min-w-0">
+                    <p
+                      className={`text-[11px] uppercase tracking-wider ${activeTheme.subText} font-semibold truncate`}
+                    >
+                      {settings.companyName} · {settings.docNumber}
+                    </p>
+                    <h1 className="text-lg sm:text-xl font-bold leading-snug">
+                      {settings.appTitle}
+                    </h1>
                   </div>
-                )}
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 mt-3 leading-relaxed">
+                  {settings.loginSubtitle || DEFAULT_SETTINGS.loginSubtitle}
+                </p>
+              </div>
 
-                <button
-                  type="submit"
-                  className={`w-full py-2.5 px-4 ${activeTheme.accentBtn} text-white font-semibold rounded-xl text-sm transition cursor-pointer`}
-                >
-                  Masuk ke Sistem Work Order
-                </button>
-              </form>
-            </div>
-          </Tilt3DCard>
+              <div className="p-5 sm:p-6">
+                <div className="grid grid-cols-2 gap-2 bg-teal-50/90 p-1 rounded-xl mb-5 border border-teal-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("user");
+                      setLoginError("");
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                      loginRole === "user"
+                        ? "bg-white text-teal-950 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 shrink-0" />
+                    User Departemen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRole("admin");
+                      setLoginError("");
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                      loginRole === "admin"
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    Admin Engineering
+                  </button>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Nama Lengkap
+                    </label>
+                    <input
+                      type="text"
+                      value={loginName}
+                      onChange={(e) => setLoginName(e.target.value)}
+                      placeholder={
+                        loginRole === "admin"
+                          ? "Nama Admin Engineering"
+                          : "Nama pemohon / perwakilan departemen"
+                      }
+                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  {loginRole === "user" ? (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Departemen ({settings.departments.length} Departemen)
+                      </label>
+                      <select
+                        value={loginDept}
+                        onChange={(e) => setLoginDept(e.target.value)}
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      >
+                        {settings.departments.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Password / PIN Admin Engineering
+                      </label>
+                      <input
+                        type="password"
+                        value={loginPin}
+                        onChange={(e) => setLoginPin(e.target.value)}
+                        placeholder="Masukkan Password / PIN Admin"
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+                  )}
+
+                  {loginError && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
+                      {loginError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className={`w-full py-2.5 px-4 ${activeTheme.accentBtn} text-white font-semibold rounded-xl text-sm transition cursor-pointer`}
+                  >
+                    Masuk ke Sistem Work Order
+                  </button>
+                </form>
+              </div>
+            </CalmCard>
+          </div>
         </div>
+
+        {renderFooter()}
       </div>
     );
   }
@@ -1259,7 +1581,7 @@ export default function App() {
 
   return (
     <div
-      className={`relative min-h-screen ${
+      className={`relative min-h-screen flex flex-col justify-between ${
         settings.bgStyle === "solid"
           ? activeTheme.solidBg
           : activeTheme.gradientBg
@@ -1267,562 +1589,779 @@ export default function App() {
     >
       <FuturisticBackdrop activeTheme={activeTheme} settings={settings} />
 
-      <header
-        className={`relative ${activeTheme.header} backdrop-blur-xl text-white border-b border-cyan-400/25 sticky top-0 z-30 shadow-lg`}
-      >
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 ${
-                isCustomLogoActive
-                  ? "bg-white p-0"
-                  : `${activeTheme.badgeBox} p-1.5`
-              } rounded-xl shrink-0 shadow-md overflow-hidden flex items-center justify-center ring-2 ring-cyan-400/35`}
-            >
-              <BrandMark
-                settings={settings}
-                iconSizeClass="w-6 h-6 text-white"
-              />
+      <div>
+        <header
+          className={`relative ${activeTheme.header} backdrop-blur-xl text-white border-b border-teal-400/25 sticky top-0 z-30 shadow-lg`}
+        >
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 ${
+                  isCustomLogoActive
+                    ? "bg-white p-0"
+                    : `${activeTheme.badgeBox} p-1.5`
+                } rounded-xl shrink-0 shadow-md overflow-hidden flex items-center justify-center ring-2 ring-teal-300/35`}
+              >
+                <BrandMark
+                  settings={settings}
+                  iconSizeClass="w-6 h-6 text-white"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-sm sm:text-lg font-bold tracking-tight truncate">
+                    {settings.appTitle}
+                  </h1>
+                  <span
+                    className={`text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                      session.role === "admin"
+                        ? "bg-amber-400 text-slate-950"
+                        : "bg-teal-400/20 text-teal-200 border border-teal-300/30"
+                    }`}
+                  >
+                    {session.role === "admin"
+                      ? `ADMIN · ${session.name}`
+                      : `${session.department} · ${session.name}`}
+                  </span>
+                  {settings.showLiveIndicator !== false && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Live
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-300 truncate">
+                  {settings.companyName} · Standar Form: {settings.docNumber}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
+
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+              <div className="col-span-2 sm:col-span-1">{renderMusicBar()}</div>
+
+              <button
+                type="button"
+                onClick={() => setShowVideoPanel((prev) => !prev)}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-400/30 text-xs font-semibold transition cursor-pointer"
+              >
+                <Video className="w-4 h-4" />
+                Channel Video
+              </button>
+
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl ${activeTheme.accentBtn} text-white text-xs sm:text-sm font-semibold transition cursor-pointer`}
+              >
+                <Plus className="w-4 h-4" />
+                Buat Form Request WO
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Excel (.xlsx)
+              </button>
+
+              {session.role === "admin" && (
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 border border-white/15 text-xs font-semibold transition cursor-pointer"
+                >
+                  <Settings className="w-4 h-4" />
+                  Setting
+                </button>
+              )}
+
+              {session.role === "admin" &&
+                settings.showResetButton !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmResetOpen(true)}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-medium transition cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset
+                  </button>
+                )}
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-rose-600 text-slate-200 hover:text-white text-xs font-medium transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                Keluar
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
+          {/* Panel Pemutar Musik Bebas (Upload File / URL / Daftar Lagu) */}
+          {showMusicPanel && (
+            <div className="bg-slate-900/92 backdrop-blur-xl border border-teal-400/35 text-white rounded-2xl p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-teal-300">
+                  <Music className="w-4 h-4" />
+                  Pemutar Musik Bebas &amp; Daftar Lagu
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMusicPanel(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                <label className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Upload File Musik (MP3/WAV/OGG)
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleUploadAudioFile}
+                    className="hidden"
+                  />
+                </label>
+
+                <form onSubmit={handleAddAudioUrl} className="md:col-span-2 flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={customAudioTitle}
+                    onChange={(e) => setCustomAudioTitle(e.target.value)}
+                    placeholder="Judul lagu (opsional)"
+                    className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-400 sm:w-44"
+                  />
+                  <input
+                    type="text"
+                    value={customAudioUrl}
+                    onChange={(e) => setCustomAudioUrl(e.target.value)}
+                    placeholder="Tempel link file musik (.mp3 / .ogg / .wav)..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-400"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    + Tambah ke Daftar
+                  </button>
+                </form>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/10 text-xs">
+                <div className="flex items-center gap-2">
+                  {musicPlaying ? (
+                    <Volume2 className="w-4 h-4 text-teal-300" />
+                  ) : (
+                    <VolumeX className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>Volume: {Math.round(musicVolume * 100)}%</span>
+                  <input
+                    type="range"
+                    min={0.05}
+                    max={1}
+                    step={0.05}
+                    value={musicVolume}
+                    onChange={(e) => setMusicVolume(Number(e.target.value))}
+                    className="w-28 accent-teal-400 cursor-pointer"
+                  />
+                </div>
+                <span className="text-slate-300">
+                  Sedang dipilih: <strong>{activeTrack?.name}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Channel Video Info, Pengumuman, Tutorial & Iklan */}
+          {showVideoPanel && (
+            <div className="bg-white/95 backdrop-blur-xl border border-sky-300 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <Video className="w-5 h-5 text-sky-600" />
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                      {videoTitleDraft || DEFAULT_SETTINGS.videoChannelTitle}
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      {videoDescDraft || DEFAULT_SETTINGS.videoChannelDesc}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVideoPanel(false)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {embedVideo.type === "iframe" && (
+                <div className="aspect-video w-full max-w-3xl mx-auto rounded-xl overflow-hidden border border-slate-300 bg-black">
+                  <iframe
+                    src={embedVideo.src}
+                    title="Channel Video Info & Pengumuman"
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )}
+
+              {embedVideo.type === "video" && (
+                <div className="w-full max-w-3xl mx-auto rounded-xl overflow-hidden border border-slate-300 bg-black">
+                  <video
+                    src={embedVideo.src}
+                    controls
+                    className="w-full max-h-[380px] mx-auto"
+                  />
+                </div>
+              )}
+
+              {embedVideo.type === "none" && (
+                <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50/60 p-6 text-center text-xs text-sky-900">
+                  Belum ada video diputar. Upload file video lokal atau tempel link YouTube / MP4 di bawah ini untuk info, pengumuman, tutorial, atau iklan.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+                <input
+                  type="text"
+                  value={videoTitleDraft}
+                  onChange={(e) => setVideoTitleDraft(e.target.value)}
+                  placeholder="Judul Info / Tutorial / Iklan"
+                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                />
+                <input
+                  type="text"
+                  value={videoDescDraft}
+                  onChange={(e) => setVideoDescDraft(e.target.value)}
+                  placeholder="Keterangan singkat video"
+                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                />
+                <input
+                  type="text"
+                  value={videoUrlDraft}
+                  onChange={(e) => setVideoUrlDraft(e.target.value)}
+                  placeholder="Link YouTube atau URL video (.mp4)"
+                  className="px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-semibold cursor-pointer">
+                    <Upload className="w-3.5 h-3.5" />
+                    Upload Video
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleUploadChannelVideo}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSaveChannelVideo}
+                    className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {settings.announcementText && (
+            <div className="bg-teal-50/95 backdrop-blur-md border border-teal-300/80 rounded-2xl px-4 py-3 text-xs sm:text-sm text-teal-950 font-medium shadow-sm flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-700 shrink-0" />
+              <span>{settings.announcementText}</span>
+            </div>
+          )}
+
+          {dbError && (
+            <div className="bg-rose-50/95 backdrop-blur-md border border-rose-200 rounded-2xl p-4 text-sm text-rose-800 font-medium">
+              {dbError}
+            </div>
+          )}
+
+          {notifBanner && (
+            <div className="bg-slate-900/92 backdrop-blur-xl border border-teal-400/40 text-white rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-lg">
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-teal-300">
+                  Form Siap Preview, Download PDF &amp; Print
+                </p>
+                <p className="text-xs sm:text-sm text-slate-100">
+                  {notifBanner.message}
+                </p>
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-sm sm:text-lg font-bold tracking-tight truncate">
-                  {settings.appTitle}
-                </h1>
-                <span
-                  className={`text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                    session.role === "admin"
-                      ? "bg-amber-400 text-slate-950"
-                      : "bg-white/15 text-white border border-white/20"
+                <button
+                  type="button"
+                  onClick={() => setPreviewTicket(notifBanner.ticket)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Preview / PDF / Print ({settings.docNumber})
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openWhatsAppNotification(
+                      buildNotificationText(
+                        notifBanner.ticket,
+                        notifBanner.eventType,
+                        settings,
+                      ),
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openEmailNotification(
+                      notifBanner.ticket,
+                      buildNotificationText(
+                        notifBanner.ticket,
+                        notifBanner.eventType,
+                        settings,
+                      ),
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold cursor-pointer"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotifBanner(null)}
+                  className="p-2 rounded-lg text-slate-300 hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {settings.showStatsCards !== false && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <CalmCard
+                motionMode={motionMode}
+                className="bg-white/92 backdrop-blur-xl rounded-2xl border-t-4 border-t-teal-500 border border-white/75 p-3.5 sm:p-4 shadow-md"
+              >
+                <p className="text-[11px] sm:text-xs font-semibold text-teal-800">
+                  Antrian Aktif (Waiting List)
+                </p>
+                <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
+                  {activeQueue.length}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Urutan: P1 → P2 → P3 (FIFO)
+                </p>
+              </CalmCard>
+
+              <CalmCard
+                motionMode={motionMode}
+                className="bg-white/92 backdrop-blur-xl rounded-2xl border-t-4 border-t-amber-500 border border-white/75 p-3.5 sm:p-4 shadow-md"
+              >
+                <p className="text-[11px] sm:text-xs font-semibold text-amber-800">
+                  Eskalasi P1 / P2
+                </p>
+                <p className="text-xl sm:text-2xl font-extrabold text-rose-600 mt-1">
+                  {
+                    activeQueue.filter(
+                      (t) => t.priority === "P1" || t.priority === "P2",
+                    ).length
+                  }
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Approval Management
+                </p>
+              </CalmCard>
+
+              <CalmCard
+                motionMode={motionMode}
+                className="bg-white/92 backdrop-blur-xl rounded-2xl border-t-4 border-t-sky-500 border border-white/75 p-3.5 sm:p-4 shadow-md"
+              >
+                <p className="text-[11px] sm:text-xs font-semibold text-sky-800">
+                  In Progress
+                </p>
+                <p className="text-xl sm:text-2xl font-extrabold text-indigo-600 mt-1">
+                  {tickets.filter((t) => t.status === "In Progress").length}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Dikerjakan di lapangan
+                </p>
+              </CalmCard>
+
+              <CalmCard
+                motionMode={motionMode}
+                className="bg-white/92 backdrop-blur-xl rounded-2xl border-t-4 border-t-emerald-500 border border-white/75 p-3.5 sm:p-4 shadow-md"
+              >
+                <p className="text-[11px] sm:text-xs font-semibold text-emerald-800">
+                  Riwayat Selesai (Done)
+                </p>
+                <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1">
+                  {completedTickets.length}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Arsip &amp; Excel (.xlsx)
+                </p>
+              </CalmCard>
+            </div>
+          )}
+
+          <div className="bg-white/92 backdrop-blur-xl rounded-2xl border border-white/75 p-3.5 sm:p-4 space-y-3.5 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200/70 pb-3">
+              <div className="grid grid-cols-2 sm:flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("queue")}
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                    activeTab === "queue"
+                      ? "bg-teal-900 text-white shadow-xs"
+                      : "bg-teal-50 text-teal-900 hover:bg-teal-100"
                   }`}
                 >
-                  {session.role === "admin"
-                    ? `ADMIN · ${session.name}`
-                    : `${session.department} · ${session.name}`}
-                </span>
-                {settings.showLiveIndicator !== false && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Live
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-300 truncate">
-                {settings.companyName} · Standar Form: {settings.docNumber}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl ${activeTheme.accentBtn} text-white text-xs sm:text-sm font-semibold transition cursor-pointer`}
-            >
-              <Plus className="w-4 h-4" />
-              Buat Form Request WO
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              Excel (.xlsx)
-            </button>
-
-            {session.role === "admin" && (
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 border border-white/15 text-xs font-semibold transition cursor-pointer"
-              >
-                <Settings className="w-4 h-4" />
-                Setting
-              </button>
-            )}
-
-            {session.role === "admin" && settings.showResetButton !== false && (
-              <button
-                type="button"
-                onClick={() => setConfirmResetOpen(true)}
-                className="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-medium transition cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-red-600 text-slate-200 hover:text-white text-xs font-medium transition cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-              Keluar
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">
-        {settings.announcementText && (
-          <div className="bg-amber-50/92 backdrop-blur-md border border-amber-300/80 rounded-2xl px-4 py-3 text-xs sm:text-sm text-amber-950 font-medium shadow-md flex items-center gap-2">
-            <Activity className="w-4 h-4 text-amber-700 shrink-0 animate-pulse" />
-            <span>{settings.announcementText}</span>
-          </div>
-        )}
-
-        {dbError && (
-          <div className="bg-red-50/95 backdrop-blur-md border border-red-200 rounded-2xl p-4 text-sm text-red-800 font-medium">
-            {dbError}
-          </div>
-        )}
-
-        {notifBanner && (
-          <div className="bg-slate-900/90 backdrop-blur-xl border border-cyan-400/40 text-white rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xl">
-            <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-                Form Siap Preview, Download PDF & Print
-              </p>
-              <p className="text-xs sm:text-sm text-slate-100">
-                {notifBanner.message}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setPreviewTicket(notifBanner.ticket)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Preview / PDF / Print ({settings.docNumber})
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openWhatsAppNotification(
-                    buildNotificationText(
-                      notifBanner.ticket,
-                      notifBanner.eventType,
-                      settings,
-                    ),
-                  )
-                }
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white text-xs font-semibold cursor-pointer"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                WhatsApp
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openEmailNotification(
-                    notifBanner.ticket,
-                    buildNotificationText(
-                      notifBanner.ticket,
-                      notifBanner.eventType,
-                      settings,
-                    ),
-                  )
-                }
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold cursor-pointer"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => setNotifBanner(null)}
-                className="p-2 rounded-lg text-slate-300 hover:bg-white/10 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {settings.showStatsCards !== false && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <Tilt3DCard
-              motionMode={motionMode}
-              className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-3.5 sm:p-4 shadow-lg ring-1 ring-black/5"
-            >
-              <p className="text-[11px] sm:text-xs font-medium text-slate-600">
-                Antrian Aktif (Waiting List)
-              </p>
-              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
-                {activeQueue.length}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Urutan: P1 → P2 → P3 (FIFO)
-              </p>
-            </Tilt3DCard>
-
-            <Tilt3DCard
-              motionMode={motionMode}
-              className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-3.5 sm:p-4 shadow-lg ring-1 ring-black/5"
-            >
-              <p className="text-[11px] sm:text-xs font-medium text-slate-600">
-                Eskalasi P1 / P2
-              </p>
-              <p className="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">
-                {
-                  activeQueue.filter(
-                    (t) => t.priority === "P1" || t.priority === "P2",
-                  ).length
-                }
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Approval Management
-              </p>
-            </Tilt3DCard>
-
-            <Tilt3DCard
-              motionMode={motionMode}
-              className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-3.5 sm:p-4 shadow-lg ring-1 ring-black/5"
-            >
-              <p className="text-[11px] sm:text-xs font-medium text-slate-600">
-                In Progress
-              </p>
-              <p className="text-xl sm:text-2xl font-extrabold text-indigo-600 mt-1">
-                {tickets.filter((t) => t.status === "In Progress").length}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Dikerjakan di lapangan
-              </p>
-            </Tilt3DCard>
-
-            <Tilt3DCard
-              motionMode={motionMode}
-              className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-3.5 sm:p-4 shadow-lg ring-1 ring-black/5"
-            >
-              <p className="text-[11px] sm:text-xs font-medium text-slate-600">
-                Riwayat Selesai (Done)
-              </p>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1">
-                {completedTickets.length}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Arsip & Excel (.xlsx)
-              </p>
-            </Tilt3DCard>
-          </div>
-        )}
-
-        <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-3.5 sm:p-4 space-y-3.5 shadow-lg ring-1 ring-black/5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200/70 pb-3">
-            <div className="grid grid-cols-2 sm:flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab("queue")}
-                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                  activeTab === "queue"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                Waiting List ({activeQueue.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("history")}
-                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                  activeTab === "history"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                Selesai ({completedTickets.length})
-              </button>
-            </div>
-
-            {settings.showWorkflowHint !== false && (
-              <p className="text-[11px] sm:text-xs text-slate-600">
-                No. Form otomatis berurutan · Input pemohon, TTD Division Head & foto → Preview / PDF / Print <strong>{settings.docNumber}</strong>.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari No. Form, Pemohon, Dept, Keterangan..."
-                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
-            </div>
-
-            <select
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="ALL">
-                Semua Departemen ({settings.departments.length})
-              </option>
-              {settings.departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="ALL">Semua Skala Prioritas</option>
-              <option value="P1">P1 - Critical / Urgent</option>
-              <option value="P2">P2 - High Priority</option>
-              <option value="P3">P3 - Normal (FIFO)</option>
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white/95 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="ALL">Semua Status</option>
-              <option value="Waiting List">Waiting List</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Pending Material">Pending Material</option>
-              <option value="Done">Done</option>
-            </select>
-          </div>
-        </div>
-
-        {isLoadingDb ? (
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-10 text-center text-sm text-slate-600">
-            Menyinkronkan data dengan Cloud Firestore...
-          </div>
-        ) : filteredTickets.length === 0 ? (
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 p-8 sm:p-10 text-center space-y-3 shadow-lg">
-            <p className="text-sm font-medium text-slate-700">
-              Belum ada antrian Work Order atau tidak ada data yang sesuai
-              filter.
-            </p>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl ${activeTheme.accentBtn} text-white text-xs sm:text-sm font-semibold transition cursor-pointer`}
-            >
-              <Plus className="w-4 h-4" />
-              Buat Surat Permintaan Pekerjaan
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3.5">
-            {filteredTickets.map((ticket) => {
-              const pMeta = PRIORITY_META[ticket.priority] || PRIORITY_META.P3;
-              const sMeta =
-                STATUS_META[ticket.status] || STATUS_META["Waiting List"];
-              const StatusIcon = sMeta.icon;
-              const queuePos = queuePositionMap[ticket.id];
-              const headChain = [
-                ticket.reqSupervisor && `SPV: ${ticket.reqSupervisor}`,
-                ticket.reqChief && `Chief: ${ticket.reqChief}`,
-                ticket.reqManager && `Mgr: ${ticket.reqManager}`,
-                ticket.reqGm && `GM: ${ticket.reqGm}`,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-
-              return (
-                <Tilt3DCard
-                  key={ticket.id}
-                  motionMode={motionMode}
-                  className={`bg-white/92 backdrop-blur-xl rounded-2xl border border-white/75 ${cardPadClass} shadow-lg ring-1 ring-black/5`}
+                  Waiting List ({activeQueue.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("history")}
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                    activeTab === "history"
+                      ? "bg-teal-900 text-white shadow-xs"
+                      : "bg-teal-50 text-teal-900 hover:bg-teal-100"
+                  }`}
                 >
-                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                    <div className="space-y-2.5 flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                        {activeTab === "queue" && queuePos && (
-                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-xs font-bold shadow-2xs">
-                            Antrian #{queuePos}
+                  Selesai ({completedTickets.length})
+                </button>
+              </div>
+
+              {settings.showWorkflowHint !== false && (
+                <p className="text-[11px] sm:text-xs text-slate-600">
+                  User bisa <strong>Edit / Revisi</strong> atau <strong>Tarik Ulang</strong> form kapan saja bila ada kesalahan.
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari No. Form, Pemohon, Dept, Keterangan..."
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <select
+                value={filterDept}
+                onChange={(e) => setFilterDept(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="ALL">
+                  Semua Departemen ({settings.departments.length})
+                </option>
+                {settings.departments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="ALL">Semua Skala Prioritas</option>
+                <option value="P1">P1 - Critical / Urgent</option>
+                <option value="P2">P2 - High Priority</option>
+                <option value="P3">P3 - Normal (FIFO)</option>
+              </select>
+
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="ALL">Semua Status</option>
+                <option value="Waiting List">Waiting List</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Pending Material">Pending Material</option>
+                <option value="Done">Done</option>
+              </select>
+            </div>
+          </div>
+
+          {isLoadingDb ? (
+            <div className="bg-white/92 backdrop-blur-xl rounded-2xl border border-white/75 p-10 text-center text-sm text-slate-600">
+              Menyinkronkan data dengan Cloud Firestore...
+            </div>
+          ) : filteredTickets.length === 0 ? (
+            <div className="bg-white/92 backdrop-blur-xl rounded-2xl border border-white/75 p-8 sm:p-10 text-center space-y-3 shadow-md">
+              <p className="text-sm font-medium text-slate-700">
+                Belum ada antrian Work Order atau tidak ada data yang sesuai
+                filter.
+              </p>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl ${activeTheme.accentBtn} text-white text-xs sm:text-sm font-semibold transition cursor-pointer`}
+              >
+                <Plus className="w-4 h-4" />
+                Buat Surat Permintaan Pekerjaan
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {filteredTickets.map((ticket) => {
+                const pMeta = PRIORITY_META[ticket.priority] || PRIORITY_META.P3;
+                const sMeta =
+                  STATUS_META[ticket.status] || STATUS_META["Waiting List"];
+                const StatusIcon = sMeta.icon;
+                const queuePos = queuePositionMap[ticket.id];
+                const headChain = [
+                  ticket.reqSupervisor && `SPV: ${ticket.reqSupervisor}`,
+                  ticket.reqChief && `Chief: ${ticket.reqChief}`,
+                  ticket.reqManager && `Mgr: ${ticket.reqManager}`,
+                  ticket.reqGm && `GM: ${ticket.reqGm}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+
+                const canUserEditOrWithdraw =
+                  session.role === "user" && ticket.status !== "Done";
+
+                return (
+                  <CalmCard
+                    key={ticket.id}
+                    motionMode={motionMode}
+                    className={`bg-white/94 backdrop-blur-xl rounded-2xl border border-white/80 ${cardPadClass} shadow-md`}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                      <div className="space-y-2.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                          {activeTab === "queue" && queuePos && (
+                            <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-teal-900 text-white text-xs font-bold">
+                              Antrian #{queuePos}
+                            </span>
+                          )}
+                          <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                            {ticket.id}
                           </span>
-                        )}
-                        <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg">
-                          {ticket.id}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200">
-                          <Building2 className="w-3.5 h-3.5" />
-                          {ticket.department}
-                        </span>
-                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-800 border border-purple-200">
-                          {ticket.jobType || "Repair"}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${pMeta.badge}`}
-                        >
+                          <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200">
+                            <Building2 className="w-3.5 h-3.5" />
+                            {ticket.department}
+                          </span>
+                          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-violet-50 text-violet-800 border border-violet-200">
+                            {ticket.jobType || "Repair"}
+                          </span>
                           <span
-                            className={`w-2 h-2 rounded-full ${pMeta.dot} ${
-                              ticket.priority === "P1" ? "animate-ping" : ""
-                            }`}
-                          />
-                          {pMeta.short}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${sMeta.badge}`}
-                        >
-                          <StatusIcon className="w-3.5 h-3.5" />
-                          {ticket.status}
-                        </span>
-                      </div>
-
-                      <p className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                        {ticket.description}
-                      </p>
-
-                      {ticket.photoDataUrl && (
-                        <div className="pt-1">
-                          <img
-                            src={ticket.photoDataUrl}
-                            alt="Foto Masalah / Permintaan"
-                            className="h-24 w-auto max-w-xs object-cover rounded-xl border border-slate-200 shadow-xs"
-                          />
-                        </div>
-                      )}
-
-                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <FileCheck2 className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span>
-                            <strong>Form IATF:</strong> {settings.docNumber}
+                            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${pMeta.badge}`}
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${pMeta.dot}`}
+                            />
+                            {pMeta.short}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${sMeta.badge}`}
+                          >
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {ticket.status}
                           </span>
                         </div>
-                        <div>
-                          <strong>Divisi Head:</strong>{" "}
-                          {headChain || "TTD Manual Pada Form Cetak"}
-                        </div>
-                        <div>
-                          <strong>Berkas Fisik:</strong> {ticket.handoverStatus}
-                        </div>
-                      </div>
 
-                      {ticket.approvedByManagement && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-950 flex flex-wrap items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <p className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
+                          {ticket.description}
+                        </p>
+
+                        {ticket.photoDataUrl && (
+                          <div className="pt-1">
+                            <img
+                              src={ticket.photoDataUrl}
+                              alt="Foto Masalah / Permintaan"
+                              className="h-24 w-auto max-w-xs object-cover rounded-xl border border-slate-200"
+                            />
+                          </div>
+                        )}
+
+                        <div className="bg-teal-50/60 border border-teal-200/70 rounded-xl p-3 text-xs text-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <FileCheck2 className="w-4 h-4 text-teal-700 shrink-0" />
+                            <span>
+                              <strong>Form IATF:</strong> {settings.docNumber}
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Divisi Head:</strong>{" "}
+                            {headChain || "TTD Manual Pada Form Cetak"}
+                          </div>
+                          <div>
+                            <strong>Berkas Fisik:</strong>{" "}
+                            {ticket.handoverStatus}
+                          </div>
+                        </div>
+
+                        {ticket.approvedByManagement && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-950 flex flex-wrap items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>
+                              <strong>Disetujui Management:</strong>{" "}
+                              {ticket.approvedByManagement}
+                              {ticket.escalationReason
+                                ? ` — Alasan: ${ticket.escalationReason}`
+                                : ""}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
                           <span>
-                            <strong>Disetujui Management:</strong>{" "}
-                            {ticket.approvedByManagement}
-                            {ticket.escalationReason
-                              ? ` — Alasan: ${ticket.escalationReason}`
+                            Yang Meminta: <strong>{ticket.requesterName}</strong>
+                            {ticket.requesterNip
+                              ? ` (${ticket.requesterNip})`
                               : ""}
                           </span>
+                          <span>
+                            Departemen: <strong>{ticket.department}</strong>
+                            {ticket.section ? ` · ${ticket.section}` : ""}
+                          </span>
+                          <span>
+                            Kategori: <strong>{ticket.category}</strong>
+                          </span>
+                          <span>
+                            Input: <strong>{ticket.createdAt}</strong>
+                          </span>
+                          <span>
+                            PIC Engineering:{" "}
+                            <strong>
+                              {ticket.assignedPic || "Belum ditentukan"}
+                            </strong>
+                          </span>
                         </div>
-                      )}
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
-                        <span>
-                          Yang Meminta: <strong>{ticket.requesterName}</strong>
-                          {ticket.requesterNip ? ` (${ticket.requesterNip})` : ""}
-                        </span>
-                        <span>
-                          Departemen: <strong>{ticket.department}</strong>
-                          {ticket.section ? ` · ${ticket.section}` : ""}
-                        </span>
-                        <span>
-                          Kategori: <strong>{ticket.category}</strong>
-                        </span>
-                        <span>
-                          Input: <strong>{ticket.createdAt}</strong>
-                        </span>
-                        <span>
-                          PIC Engineering:{" "}
-                          <strong>
-                            {ticket.assignedPic || "Belum ditentukan"}
-                          </strong>
-                        </span>
+                        {ticket.engineeringNotes && (
+                          <p className="text-xs text-slate-600 bg-slate-100/80 rounded-lg px-3 py-1.5">
+                            <strong>Catatan Engineering:</strong>{" "}
+                            {ticket.engineeringNotes}
+                          </p>
+                        )}
                       </div>
 
-                      {ticket.engineeringNotes && (
-                        <p className="text-xs text-slate-600 bg-slate-100/80 rounded-lg px-3 py-1.5">
-                          <strong>Catatan Engineering:</strong>{" "}
-                          {ticket.engineeringNotes}
-                        </p>
-                      )}
-                    </div>
+                      <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end justify-between gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                        {(session.role === "admin" ||
+                          settings.allowUserPrintForm !== false) && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTicket(ticket)}
+                            className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl ${activeTheme.accentBtn} text-white text-xs font-semibold transition cursor-pointer`}
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            Preview / PDF / Print
+                          </button>
+                        )}
 
-                    <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end justify-between gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-                      {(session.role === "admin" ||
-                        settings.allowUserPrintForm !== false) && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewTicket(ticket)}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl ${activeTheme.accentBtn} text-white text-xs font-semibold transition cursor-pointer`}
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Preview / PDF / Print
-                        </button>
-                      )}
+                        {canUserEditOrWithdraw && (
+                          <div className="grid grid-cols-2 gap-2 w-full">
+                            <button
+                              type="button"
+                              onClick={() => openEditUserTicket(ticket)}
+                              className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold transition cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Edit / Revisi
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleWithdrawUserTicket(ticket)}
+                              className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-semibold transition cursor-pointer"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
+                              Tarik Ulang
+                            </button>
+                          </div>
+                        )}
 
-                      {session.role === "admin" && (
-                        <button
-                          type="button"
-                          onClick={() => openManageModal(ticket)}
-                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition cursor-pointer"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                          Kelola & Isi Form Penerima
-                        </button>
-                      )}
+                        {session.role === "admin" && (
+                          <button
+                            type="button"
+                            onClick={() => openManageModal(ticket)}
+                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-900 hover:bg-teal-800 text-white text-xs font-semibold transition cursor-pointer"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            Kelola &amp; Isi Form Penerima
+                          </button>
+                        )}
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openWhatsAppNotification(
-                              buildNotificationText(
+                        <div className="grid grid-cols-2 gap-2 w-full">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openWhatsAppNotification(
+                                buildNotificationText(
+                                  ticket,
+                                  "MANUAL_LOG",
+                                  settings,
+                                ),
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            WA
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEmailNotification(
                                 ticket,
-                                "MANUAL_LOG",
-                                settings,
-                              ),
-                            )
-                          }
-                          className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-green-50 hover:bg-green-100 text-green-800 border border-green-200 text-xs font-semibold transition cursor-pointer"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          WA
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openEmailNotification(
-                              ticket,
-                              buildNotificationText(
-                                ticket,
-                                "MANUAL_LOG",
-                                settings,
-                              ),
-                            )
-                          }
-                          className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-semibold transition cursor-pointer"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          Email
-                        </button>
+                                buildNotificationText(
+                                  ticket,
+                                  "MANUAL_LOG",
+                                  settings,
+                                ),
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-semibold transition cursor-pointer"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            Email
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Tilt3DCard>
-              );
-            })}
-          </div>
-        )}
-      </main>
+                  </CalmCard>
+                );
+              })}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {renderFooter()}
 
       {confirmResetOpen && session.role === "admin" && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
             <h3 className="text-lg font-bold text-slate-900">
-              Reset Antrian & Riwayat ke 0
+              Reset Antrian &amp; Riwayat ke 0
             </h3>
             <p className="text-sm text-slate-600">
               Seluruh data antrian aktif dan riwayat Work Order di server Cloud
@@ -1841,7 +2380,7 @@ export default function App() {
                 type="button"
                 disabled={isSubmitting}
                 onClick={executeResetFromZero}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
               >
                 {isSubmitting ? "Mereset..." : "Ya, Reset ke 0"}
               </button>
@@ -1851,20 +2390,27 @@ export default function App() {
       )}
 
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-4 sm:my-8">
+        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs overflow-y-auto flex items-start justify-center p-2 sm:p-4">
+          <div className="m-auto bg-white/96 backdrop-blur-xl rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-4 sm:my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 mb-4">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Surat Permintaan Pekerjaan ({settings.docNumber})
+                  {editingTicket
+                    ? `Edit / Revisi Form — ${editingTicket.id}`
+                    : `Surat Permintaan Pekerjaan (${settings.docNumber})`}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  No. Form otomatis berurutan sesuai standar. Isi yang meminta, departemen, TTD sampai Division Head, foto & keterangan.
+                  {editingTicket
+                    ? "Perbarui data yang salah lalu simpan revisi form."
+                    : "No. Form otomatis berurutan sesuai standar. Isi yang meminta, departemen, TTD sampai Division Head, foto & keterangan."}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsCreateOpen(false)}
+                onClick={() => {
+                  setIsCreateOpen(false);
+                  setEditingTicket(null);
+                }}
                 className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1875,7 +2421,7 @@ export default function App() {
               onSubmit={handleCreateSubmit}
               className="space-y-4 max-h-[76vh] overflow-y-auto pr-1"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-teal-50/60 p-3.5 rounded-xl border border-teal-200/70">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Yang Meminta (Name/성명) *
@@ -1959,7 +2505,10 @@ export default function App() {
                       type="text"
                       value={formData.reqSupervisor}
                       onChange={(e) =>
-                        setFormData({ ...formData, reqSupervisor: e.target.value })
+                        setFormData({
+                          ...formData,
+                          reqSupervisor: e.target.value,
+                        })
                       }
                       placeholder="Nama Supervisor"
                       className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
@@ -2069,7 +2618,7 @@ export default function App() {
                     Lampiran Foto Masalah / Permintaan
                   </label>
                   <label className="flex flex-col items-center justify-center gap-1.5 p-4 border-2 border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-50 cursor-pointer min-h-[112px]">
-                    <ImagePlus className="w-6 h-6 text-blue-600" />
+                    <ImagePlus className="w-6 h-6 text-teal-600" />
                     <span className="font-semibold text-center">
                       {formData.photoDataUrl
                         ? "Ganti Foto Masalah / Permintaan"
@@ -2098,7 +2647,7 @@ export default function App() {
                         onClick={() =>
                           setFormData({ ...formData, photoDataUrl: "" })
                         }
-                        className="mt-2 w-full py-1 rounded-lg bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 cursor-pointer"
+                        className="mt-2 w-full py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 cursor-pointer"
                       >
                         Hapus Foto
                       </button>
@@ -2123,7 +2672,7 @@ export default function App() {
               </div>
 
               {formError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
                   {formError}
                 </div>
               )}
@@ -2132,7 +2681,10 @@ export default function App() {
                 <button
                   type="button"
                   disabled={isSubmitting}
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setEditingTicket(null);
+                  }}
                   className="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Batal
@@ -2144,8 +2696,10 @@ export default function App() {
                 >
                   <Send className="w-4 h-4" />
                   {isSubmitting
-                    ? "Menerbitkan Form..."
-                    : "Terbitkan Form & Preview"}
+                    ? "Menyimpan..."
+                    : editingTicket
+                      ? "Simpan Revisi Form"
+                      : "Terbitkan Form & Preview"}
                 </button>
               </div>
             </form>
@@ -2154,12 +2708,12 @@ export default function App() {
       )}
 
       {manageTicket && session.role === "admin" && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-4 sm:my-8">
+        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs overflow-y-auto flex items-start justify-center p-2 sm:p-4">
+          <div className="m-auto bg-white/96 backdrop-blur-xl rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-4 sm:my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Kelola WO & Isi Form Penerima — {manageTicket.id}
+                  Kelola WO &amp; Isi Form Penerima — {manageTicket.id}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {manageTicket.department} · {manageTicket.requesterName}
@@ -2186,7 +2740,7 @@ export default function App() {
                   onClick={() => setManageTab(t.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer ${
                     manageTab === t.id
-                      ? "bg-slate-900 text-white"
+                      ? "bg-teal-900 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
@@ -2330,7 +2884,7 @@ export default function App() {
                           Berkas TTD Diterima Engineering
                         </option>
                         <option value="Terverifikasi & Diarsipkan">
-                          Terverifikasi & Diarsipkan
+                          Terverifikasi &amp; Diarsipkan
                         </option>
                       </select>
                     </div>
@@ -2503,10 +3057,10 @@ export default function App() {
                   </div>
 
                   {manageState.executorType === "Vendor" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-teal-50/70 p-3.5 rounded-xl border border-teal-200">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Section Head (Vendor)
+                          Section Head (TTD / Nama)
                         </label>
                         <input
                           type="text"
@@ -2517,12 +3071,13 @@ export default function App() {
                               vendorSectionHead: e.target.value,
                             })
                           }
+                          placeholder="Kosongkan bila TTD manual luas"
                           className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Project Section Head
+                          Project Section head (TTD / Nama)
                         </label>
                         <input
                           type="text"
@@ -2533,12 +3088,13 @@ export default function App() {
                               vendorProjectHead: e.target.value,
                             })
                           }
+                          placeholder="Kosongkan bila TTD manual luas"
                           className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Nama Vendor
+                          Vendor (TTD / Nama)
                         </label>
                         <input
                           type="text"
@@ -2549,6 +3105,7 @@ export default function App() {
                               vendorName: e.target.value,
                             })
                           }
+                          placeholder="Nama / TTD Vendor"
                           className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
                         />
                       </div>
@@ -2567,7 +3124,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={addManPowerRow}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-600 text-white text-xs font-semibold cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Tambah Teknisi
@@ -2641,7 +3198,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => removeManPowerRow(idx)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg justify-self-end cursor-pointer"
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg justify-self-end cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2727,7 +3284,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => removeMaterialRow(idx)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg justify-self-end cursor-pointer"
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg justify-self-end cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2739,7 +3296,7 @@ export default function App() {
               )}
 
               {manageError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
                   {manageError}
                 </div>
               )}
@@ -2756,7 +3313,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
+                  className="px-4 py-2 rounded-xl bg-teal-900 hover:bg-teal-800 text-white text-sm font-semibold cursor-pointer disabled:opacity-60"
                 >
                   {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
