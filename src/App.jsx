@@ -2358,6 +2358,7 @@ export default function App() {
             db={db}
             appId="wo-engineering"
             currentUserName={formData?.requesterName || session?.name || ""}
+            isAdmin={session?.role === "admin"}
           />
         </main>
       </div>

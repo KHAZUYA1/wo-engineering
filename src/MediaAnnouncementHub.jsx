@@ -3,49 +3,26 @@ import {
   Search,
   Play,
   Pause,
-  Plus,
-  Volume2,
-  Upload,
-  Lock,
-  Unlock,
+  Film,
   Share2,
   Copy,
   Check,
   MessageSquare,
   Send,
-  Radio,
-  Trash2,
-  Film,
+  ShieldCheck,
+  Lock,
   Save,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 
-// Saluran & katalog musik gratis bawaan (bebas lisensi / CC0 / public domain)
-const FREE_MUSIC_CHANNELS = [
-  {
-    id: "ch-relax-1",
-    title: "Morning Focus & Calm Piano",
-    artist: "Free Ambient Channel",
-    genre: "Relax / Focus",
-    duration: "03:12",
-    url: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
-  },
-  {
-    id: "ch-upbeat-2",
-    title: "Bright Team Energy",
-    artist: "Open Acoustic Collective",
-    genre: "Upbeat / Work",
-    duration: "02:24",
-    url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=inspiring-cinematic-ambient-116199.mp3",
-  },
-  {
-    id: "ch-soft-3",
-    title: "Night Shift Chill Beat",
-    artist: "Creative Commons Lo-Fi",
-    genre: "Lo-Fi / Relax",
-    duration: "02:45",
-    url: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_95564d0b3a.mp3?filename=good-night-160166.mp3",
-  },
-];
+const DEFAULT_VIDEO_CONFIG = {
+  title: "Channel Info, Pengumuman, Tutorial & Promo",
+  subtitle:
+    "Informasi pabrik, panduan SOP, tutorial sistem, maupun pengumuman internal.",
+  videoUrl: "",
+  updatedAt: "",
+};
 
 function extractYoutubeEmbedUrl(rawUrl = "") {
   const trimmed = rawUrl.trim();
@@ -60,10 +37,25 @@ function extractYoutubeEmbedUrl(rawUrl = "") {
       const v = u.searchParams.get("v");
       if (v) return `https://www.youtube.com/embed/${v}`;
       const parts = u.pathname.split("/").filter(Boolean);
-      const embedIdx = parts.findIndex((p) => p === "embed" || p === "shorts");
-      if (embedIdx >= 0 && parts[embedIdx + 1]) {
-        return `https://www.youtube.com/embed/${parts[embedIdx + 1]}`;
+      const idx = parts.findIndex((p) => p === "embed" || p === "shorts");
+      if (idx >= 0 && parts[idx + 1]) {
+        return `https://www.youtube.com/embed/${parts[idx + 1]}`;
       }
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function extractSpotifyEmbedUrl(rawUrl = "") {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const u = new URL(trimmed);
+    if (u.hostname.includes("open.spotify.com")) {
+      const cleanPath = u.pathname.replace(/^\/intl-[a-z]{2}\//i, "/");
+      return `https://open.spotify.com/embed${cleanPath}`;
     }
   } catch {
     return "";
@@ -75,219 +67,153 @@ export default function MediaAnnouncementHub({
   db,
   appId = "wo-engineering",
   currentUserName = "",
+  isAdmin = false,
 }) {
-  // ---------------- 1. MUSIK & PENCARIAN SALURAN GRATIS ----------------
-  const [searchQuery, setSearchQuery] = useState("relax");
-  const [searchResults, setSearchResults] = useState(FREE_MUSIC_CHANNELS);
-  const [searchingMusic, setSearchingMusic] = useState(false);
-  const [musicSourceNote, setMusicSourceNote] = useState(
-    "Saluran Musik Gratis (Jamendo & Katalog Bebas Lisensi)"
+  // ---------------- 1. MUSIK ONLINE (PENCARIAN SALURAN GRATIS & SPOTIFY) ----------------
+  const [searchQuery, setSearchQuery] = useState("");
+  const [onlineTracks, setOnlineTracks] = useState([]);
+  const [activeTrack, setActiveTrack] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [musicStatusText, setMusicStatusText] = useState(
+    "Cari musik gratis online atau tempel link Spotify (track / playlist / album)"
   );
-  const [directAudioUrl, setDirectAudioUrl] = useState("");
-  const [selectedTrack, setSelectedTrack] = useState(FREE_MUSIC_CHANNELS[0]);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [volume, setVolume] = useState(0.3);
   const audioRef = useRef(null);
-  const audioFileInputRef = useRef(null);
 
-  const runMusicSearch = async (queryText) => {
-    const q = (queryText || "").trim();
-    setSearchingMusic(true);
+  const spotifyEmbedUrl = useMemo(() => {
+    if (activeTrack?.spotifyEmbed) return activeTrack.spotifyEmbed;
+    return extractSpotifyEmbedUrl(searchQuery);
+  }, [activeTrack, searchQuery]);
 
-    const localFiltered = FREE_MUSIC_CHANNELS.filter(
-      (t) =>
-        !q ||
-        t.title.toLowerCase().includes(q.toLowerCase()) ||
-        t.artist.toLowerCase().includes(q.toLowerCase()) ||
-        t.genre.toLowerCase().includes(q.toLowerCase())
-    );
+  const handleMusicSearch = async (e) => {
+    e?.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
 
+    // Jika input berupa link open.spotify.com, langsung tampilkan player embed Spotify
+    const spEmbed = extractSpotifyEmbedUrl(q);
+    if (spEmbed) {
+      setActiveTrack({
+        id: `sp-${Date.now()}`,
+        title: "Spotify Online Player",
+        artist: "Spotify",
+        spotifyEmbed: spEmbed,
+        externalUrl: q,
+      });
+      setIsPlaying(false);
+      setMusicStatusText("Terhubung ke pemutar online Spotify");
+      return;
+    }
+
+    setSearching(true);
+    setMusicStatusText("Mencari di saluran musik gratis online...");
     try {
-      // Menggunakan Jamendo API publik (client_id demo publik Jamendo)
-      const endpoint = q
-        ? `https://api.jamendo.com/v3.0/tracks/?client_id=56d30c95&format=json&limit=8&audioformat=mp32&search=${encodeURIComponent(
-            q
-          )}`
-        : `https://api.jamendo.com/v3.0/tracks/?client_id=56d30c95&format=json&limit=8&audioformat=mp32&order=popularity_total`;
-
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error("Gagal mengambil katalog musik");
-      const json = await res.json();
-      const tracks = Array.isArray(json?.results)
-        ? json.results
+      const apiUrl = `https://api.jamendo.com/v3.0/tracks/?client_id=56d30c95&format=json&limit=6&audioformat=mp32&search=${encodeURIComponent(
+        q
+      )}`;
+      const res = await fetch(apiUrl);
+      const data = await res.json();
+      const list = Array.isArray(data?.results)
+        ? data.results
             .filter((item) => Boolean(item.audio))
-            .map((item) => {
-              const sec = Number(item.duration || 0);
-              const mm = String(Math.floor(sec / 60)).padStart(2, "0");
-              const ss = String(sec % 60).padStart(2, "0");
-              return {
-                id: `jam-${item.id}`,
-                title: item.name || "Untitled Track",
-                artist: item.artist_name || "Jamendo Artist",
-                genre: q || "Free Channel",
-                duration: `${mm}:${ss}`,
-                url: item.audio,
-              };
-            })
+            .map((item) => ({
+              id: `online-${item.id}`,
+              title: item.name || "Untitled",
+              artist: item.artist_name || "Free Online Artist",
+              audioUrl: item.audio,
+              externalUrl: item.shareurl || item.audio,
+            }))
         : [];
 
-      if (tracks.length > 0) {
-        setSearchResults(tracks);
-        setMusicSourceNote(
-          `Terhubung ke Saluran Musik Gratis Jamendo (${tracks.length} lagu ditemukan)`
+      setOnlineTracks(list);
+      if (list.length > 0) {
+        setActiveTrack(list[0]);
+        setMusicStatusText(
+          `Ditemukan ${list.length} musik gratis online untuk "${q}"`
         );
       } else {
-        setSearchResults(
-          localFiltered.length ? localFiltered : FREE_MUSIC_CHANNELS
-        );
-        setMusicSourceNote(
-          "Menampilkan Saluran Musik Gratis Tersedia (Free / CC)"
+        setActiveTrack(null);
+        setMusicStatusText(
+          `Tidak ada hasil untuk "${q}". Coba kata kunci lain atau link Spotify.`
         );
       }
     } catch {
-      setSearchResults(
-        localFiltered.length ? localFiltered : FREE_MUSIC_CHANNELS
-      );
-      setMusicSourceNote(
-        "Mode Saluran Musik Gratis Lokal (Bebas Lisensi)"
+      setOnlineTracks([]);
+      setMusicStatusText(
+        "Gagal memuat saluran musik online. Periksa koneksi internet Anda."
       );
     } finally {
-      setSearchingMusic(false);
+      setSearching(false);
     }
   };
 
   useEffect(() => {
-    runMusicSearch("relax");
-  }, []);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el || !selectedTrack?.url) return;
-    el.src = selectedTrack.url;
-    if (isPlayingAudio) {
-      el.play().catch(() => setIsPlayingAudio(false));
-    }
-  }, [selectedTrack]);
-
-  const handleTogglePlay = (track = selectedTrack) => {
-    if (!track?.url) return;
-    if (selectedTrack?.id !== track.id) {
-      setSelectedTrack(track);
-      setIsPlayingAudio(true);
-      return;
-    }
     const el = audioRef.current;
     if (!el) return;
-    if (isPlayingAudio) {
+    if (!activeTrack?.audioUrl) {
       el.pause();
-      setIsPlayingAudio(false);
+      setIsPlaying(false);
+      return;
+    }
+    el.src = activeTrack.audioUrl;
+    el.play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setIsPlaying(false));
+  }, [activeTrack]);
+
+  const toggleAudioPlay = () => {
+    const el = audioRef.current;
+    if (!el || !activeTrack?.audioUrl) return;
+    if (isPlaying) {
+      el.pause();
+      setIsPlaying(false);
     } else {
       el.play()
-        .then(() => setIsPlayingAudio(true))
-        .catch(() => setIsPlayingAudio(false));
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
     }
   };
 
-  const handleAddDirectAudio = () => {
-    const url = directAudioUrl.trim();
-    if (!url) return;
-    const customTrack = {
-      id: `custom-${Date.now()}`,
-      title: url.split("/").pop()?.split("?")[0] || "Custom Stream Audio",
-      artist: "Link Musik Eksternal",
-      genre: "Custom",
-      duration: "Stream",
-      url,
-    };
-    setSearchResults((prev) => [customTrack, ...prev]);
-    setSelectedTrack(customTrack);
-    setDirectAudioUrl("");
-    setIsPlayingAudio(true);
-  };
-
-  const handleUploadAudioFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const blobUrl = URL.createObjectURL(file);
-    const uploadedTrack = {
-      id: `file-${Date.now()}`,
-      title: file.name.replace(/\.[^/.]+$/, ""),
-      artist: "File Lokal (MP3/WAV/OGG)",
-      genre: "Uploaded",
-      duration: "File",
-      url: blobUrl,
-    };
-    setSearchResults((prev) => [uploadedTrack, ...prev]);
-    setSelectedTrack(uploadedTrack);
-    setIsPlayingAudio(true);
-    e.target.value = "";
-  };
-
-  // ---------------- 2. CHANNEL VIDEO PENGUMUMAN (ADMIN EDIT, USER SHARE) ----------------
-  const DEFAULT_ANNOUNCEMENT = {
-    title: "Channel Info, Pengumuman, Tutorial & Promo",
-    subtitle:
-      "Putar video informasi pabrik, panduan SOP, tutorial sistem, maupun iklan/pengumuman internal.",
-    videoUrl: "https://www.youtube.com/watch?v=3FYdL_CxVml",
-    uploadedVideoUrl: "",
-    updatedAt: "",
-  };
-
-  const [isAdminMode, setIsAdminMode] = useState(false);
-  const [adminPinInput, setAdminPinInput] = useState("");
-  const [announcement, setAnnouncement] = useState(DEFAULT_ANNOUNCEMENT);
-  const [draftTitle, setDraftTitle] = useState(DEFAULT_ANNOUNCEMENT.title);
+  // ---------------- 2. VIDEO PENGUMUMAN (HANYA ADMIN YANG BISA EDIT & KASIH LINK) ----------------
+  const [videoConfig, setVideoConfig] = useState(DEFAULT_VIDEO_CONFIG);
+  const [adminEditOpen, setAdminEditOpen] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(DEFAULT_VIDEO_CONFIG.title);
   const [draftSubtitle, setDraftSubtitle] = useState(
-    DEFAULT_ANNOUNCEMENT.subtitle
+    DEFAULT_VIDEO_CONFIG.subtitle
   );
-  const [draftVideoUrl, setDraftVideoUrl] = useState(
-    DEFAULT_ANNOUNCEMENT.videoUrl
-  );
-  const [draftUploadedVideo, setDraftUploadedVideo] = useState("");
-  const [copiedLink, setCopiedLink] = useState(false);
-  const videoFileInputRef = useRef(null);
+  const [draftVideoUrl, setDraftVideoUrl] = useState("");
+  const [copiedShare, setCopiedShare] = useState(false);
 
-  const ANNOUNCEMENT_STORAGE_KEY = `${appId}_announcement_v1`;
-  const CHAT_STORAGE_KEY = `${appId}_announcement_chat_v1`;
+  const VIDEO_KEY = `${appId}_admin_video_v1`;
+  const CHAT_KEY = `${appId}_video_comments_v1`;
 
   useEffect(() => {
-    // Sinkronisasi pengumuman dari Firestore jika tersedia, atau localStorage
     if (db) {
       let unsub = null;
       (async () => {
         try {
           const fs = await import("firebase/firestore");
-          const docRef = fs.doc(
+          const ref = fs.doc(
             db,
             "artifacts",
             appId,
             "public",
             "data",
-            "announcementChannel",
-            "main"
+            "videoAnnouncement",
+            "config"
           );
-          unsub = fs.onSnapshot(docRef, (snap) => {
+          unsub = fs.onSnapshot(ref, (snap) => {
             if (snap.exists()) {
-              const data = snap.data();
-              setAnnouncement((prev) => ({ ...prev, ...data }));
-              if (!isAdminMode) {
-                setDraftTitle(data.title || DEFAULT_ANNOUNCEMENT.title);
-                setDraftSubtitle(
-                  data.subtitle || DEFAULT_ANNOUNCEMENT.subtitle
-                );
-                setDraftVideoUrl(data.videoUrl || "");
-                setDraftUploadedVideo(data.uploadedVideoUrl || "");
-              }
+              const d = snap.data();
+              const next = { ...DEFAULT_VIDEO_CONFIG, ...d };
+              setVideoConfig(next);
+              setDraftTitle(next.title);
+              setDraftSubtitle(next.subtitle);
+              setDraftVideoUrl(next.videoUrl || "");
             }
           });
         } catch {
-          // fallback ke localStorage
+          // fallback localStorage
         }
       })();
       return () => {
@@ -296,56 +222,33 @@ export default function MediaAnnouncementHub({
     }
 
     try {
-      const saved = localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY);
+      const saved = localStorage.getItem(VIDEO_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setAnnouncement((prev) => ({ ...prev, ...parsed }));
-        setDraftTitle(parsed.title || DEFAULT_ANNOUNCEMENT.title);
-        setDraftSubtitle(parsed.subtitle || DEFAULT_ANNOUNCEMENT.subtitle);
+        const parsed = { ...DEFAULT_VIDEO_CONFIG, ...JSON.parse(saved) };
+        setVideoConfig(parsed);
+        setDraftTitle(parsed.title);
+        setDraftSubtitle(parsed.subtitle);
         setDraftVideoUrl(parsed.videoUrl || "");
-        setDraftUploadedVideo(parsed.uploadedVideoUrl || "");
       }
     } catch {
-      // abaikan error storage
+      // abaikan
     }
   }, [db, appId]);
 
-  const handleToggleAdmin = () => {
-    if (isAdminMode) {
-      setIsAdminMode(false);
-      return;
-    }
-    // PIN default '1234' (bisa disesuaikan sesuai kebutuhan internal)
-    if (!adminPinInput || adminPinInput === "1234" || adminPinInput.toLowerCase() === "admin") {
-      setIsAdminMode(true);
-      setAdminPinInput("");
-    } else {
-      alert("PIN Admin salah. Gunakan PIN Admin (default: 1234) untuk mengedit pengumuman.");
-    }
-  };
-
-  const handleUploadVideoFile = (e) => {
-    if (!isAdminMode) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    setDraftUploadedVideo(url);
-    e.target.value = "";
-  };
-
-  const handleSaveAnnouncement = async () => {
-    if (!isAdminMode) return;
-    const payload = {
-      title: draftTitle.trim() || DEFAULT_ANNOUNCEMENT.title,
-      subtitle: draftSubtitle.trim() || DEFAULT_ANNOUNCEMENT.subtitle,
+  const handleSaveVideoByAdmin = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    const nextConfig = {
+      title: draftTitle.trim() || DEFAULT_VIDEO_CONFIG.title,
+      subtitle: draftSubtitle.trim() || DEFAULT_VIDEO_CONFIG.subtitle,
       videoUrl: draftVideoUrl.trim(),
-      uploadedVideoUrl: draftUploadedVideo.trim(),
       updatedAt: new Date().toLocaleString("id-ID"),
     };
+    setVideoConfig(nextConfig);
+    setAdminEditOpen(false);
 
-    setAnnouncement(payload);
     try {
-      localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(VIDEO_KEY, JSON.stringify(nextConfig));
     } catch {
       // abaikan
     }
@@ -353,65 +256,60 @@ export default function MediaAnnouncementHub({
     if (db) {
       try {
         const fs = await import("firebase/firestore");
-        const docRef = fs.doc(
+        const ref = fs.doc(
           db,
           "artifacts",
           appId,
           "public",
           "data",
-          "announcementChannel",
-          "main"
+          "videoAnnouncement",
+          "config"
         );
-        await fs.setDoc(docRef, payload, { merge: true });
+        await fs.setDoc(ref, nextConfig, { merge: true });
       } catch {
-        // abaikan jika firestore belum dikonfigurasi
+        // abaikan
       }
     }
-
-    alert("Pengumuman / Video berhasil disimpan oleh Admin.");
   };
 
-  const shareUrl = useMemo(() => {
-    return announcement.videoUrl || window.location.href;
-  }, [announcement.videoUrl]);
-
-  const shareText = `${announcement.title} — ${shareUrl}`;
-
-  const handleCopyShareLink = () => {
-    navigator.clipboard?.writeText(shareText);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
-
-  const youtubeEmbedSrc = useMemo(
-    () => extractYoutubeEmbedUrl(announcement.videoUrl),
-    [announcement.videoUrl]
+  const ytEmbedUrl = useMemo(
+    () => extractYoutubeEmbedUrl(videoConfig.videoUrl),
+    [videoConfig.videoUrl]
   );
 
-  // ---------------- 3. KOMENTAR & OBROLAN LANGSUNG REALTIME ----------------
-  const [senderName, setSenderName] = useState(currentUserName || "");
-  const [chatInput, setChatInput] = useState("");
+  const shareTargetUrl = videoConfig.videoUrl || window.location.href;
+  const shareMessage = `${videoConfig.title} — ${shareTargetUrl}`;
+
+  const handleCopyShare = () => {
+    navigator.clipboard?.writeText(shareMessage);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2000);
+  };
+
+  // ---------------- 3. KOMENTAR & OBROLAN REALTIME DI BAWAH VIDEO ----------------
+  const [commenterName, setCommenterName] = useState(currentUserName || "");
+  const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
-  const chatEndRef = useRef(null);
-  const channelRef = useRef(null);
+  const bcRef = useRef(null);
+  const chatBottomRef = useRef(null);
 
   useEffect(() => {
-    if (currentUserName && !senderName) {
-      setSenderName(currentUserName);
+    if (currentUserName && !commenterName) {
+      setCommenterName(currentUserName);
     }
   }, [currentUserName]);
 
   useEffect(() => {
-    // BroadcastChannel untuk sinkronisasi instan antar tab/jendela di browser yang sama
     if (typeof BroadcastChannel !== "undefined") {
-      const bc = new BroadcastChannel(`${appId}_realtime_chat`);
-      channelRef.current = bc;
+      const bc = new BroadcastChannel(`${appId}_video_chat`);
+      bcRef.current = bc;
       bc.onmessage = (ev) => {
-        if (ev?.data?.type === "NEW_COMMENT" && ev.data.comment) {
-          setComments((prev) => {
-            if (prev.some((c) => c.id === ev.data.comment.id)) return prev;
-            return [...prev, ev.data.comment];
-          });
+        if (ev?.data?.type === "NEW_MSG" && ev.data.msg) {
+          setComments((prev) =>
+            prev.some((m) => m.id === ev.data.msg.id)
+              ? prev
+              : [...prev, ev.data.msg]
+          );
         }
       };
       return () => bc.close();
@@ -430,15 +328,18 @@ export default function MediaAnnouncementHub({
             appId,
             "public",
             "data",
-            "announcementComments"
+            "videoComments"
           );
-          const q = fs.query(colRef, fs.orderBy("createdAtMs", "asc"), fs.limit(100));
+          const q = fs.query(
+            colRef,
+            fs.orderBy("createdAtMs", "asc"),
+            fs.limit(100)
+          );
           unsub = fs.onSnapshot(q, (snap) => {
-            const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setComments(list);
+            setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
           });
         } catch {
-          // fallback ke localStorage
+          // fallback localStorage
         }
       })();
       return () => {
@@ -447,10 +348,8 @@ export default function MediaAnnouncementHub({
     }
 
     try {
-      const raw = localStorage.getItem(CHAT_STORAGE_KEY);
-      if (raw) {
-        setComments(JSON.parse(raw));
-      }
+      const raw = localStorage.getItem(CHAT_KEY);
+      if (raw) setComments(JSON.parse(raw));
     } catch {
       // abaikan
     }
@@ -458,24 +357,23 @@ export default function MediaAnnouncementHub({
 
   useEffect(() => {
     try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(comments.slice(-100)));
+      localStorage.setItem(CHAT_KEY, JSON.stringify(comments.slice(-100)));
     } catch {
       // abaikan
     }
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [comments]);
 
   const handleSendComment = async (e) => {
     e.preventDefault();
-    const text = chatInput.trim();
+    const text = commentText.trim();
     if (!text) return;
 
-    const author = (senderName || currentUserName || "Karyawan / User").trim();
     const now = new Date();
-    const newComment = {
-      id: `cmt-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
-      author,
-      isAdmin: isAdminMode,
+    const msg = {
+      id: `cmt-${now.getTime()}-${Math.random().toString(36).slice(2, 6)}`,
+      author: (commenterName || currentUserName || "User").trim(),
+      isAdmin: Boolean(isAdmin),
       text,
       timeLabel: now.toLocaleTimeString("id-ID", {
         hour: "2-digit",
@@ -484,9 +382,9 @@ export default function MediaAnnouncementHub({
       createdAtMs: now.getTime(),
     };
 
-    setChatInput("");
-    setComments((prev) => [...prev, newComment]);
-    channelRef.current?.postMessage({ type: "NEW_COMMENT", comment: newComment });
+    setCommentText("");
+    setComments((prev) => [...prev, msg]);
+    bcRef.current?.postMessage({ type: "NEW_MSG", msg });
 
     if (db) {
       try {
@@ -497,315 +395,261 @@ export default function MediaAnnouncementHub({
           appId,
           "public",
           "data",
-          "announcementComments"
+          "videoComments"
         );
-        await fs.addDoc(colRef, newComment);
+        await fs.addDoc(colRef, msg);
       } catch {
-        // tetap tampil dari state lokal + BroadcastChannel
+        // abaikan
       }
     }
   };
 
-  const handleDeleteComment = (id) => {
-    if (!isAdminMode) return;
-    setComments((prev) => prev.filter((c) => c.id !== id));
-  };
-
   return (
-    <div className="space-y-4 mt-4">
+    <div className="space-y-4 my-4">
       <audio
         ref={audioRef}
-        onEnded={() => setIsPlayingAudio(false)}
+        onEnded={() => setIsPlaying(false)}
         className="hidden"
       />
 
-      {/* ================= BAGIAN 1: PENCARIAN & SALURAN MUSIK GRATIS ================= */}
-      <section className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-4 shadow-md border border-slate-700/70 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-teal-300 shrink-0" />
-            <div>
-              <h3 className="text-sm font-bold">
-                Pencarian &amp; Saluran Musik Gratis
-              </h3>
-              <p className="text-[11px] text-slate-300">{musicSourceNote}</p>
-            </div>
+      {/* ================= 1. PENCARIAN MUSIK ONLINE (SALURAN GRATIS & SPOTIFY) ================= */}
+      <section className="rounded-2xl bg-slate-900 text-white p-3.5 sm:p-4 border border-slate-700/80 shadow-md space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-xs sm:text-sm font-bold text-white">
+              Pencarian Musik Online (Saluran Musik Gratis &amp; Spotify)
+            </h3>
+            <p className="text-[11px] text-slate-300">{musicStatusText}</p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {activeTrack?.audioUrl && (
             <button
               type="button"
-              onClick={() => audioFileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium cursor-pointer border border-white/15"
+              onClick={toggleAudioPlay}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold cursor-pointer self-start sm:self-auto"
             >
-              <Upload className="w-3.5 h-3.5" />
-              Upload File Musik (MP3/WAV/OGG)
-            </button>
-            <input
-              ref={audioFileInputRef}
-              type="file"
-              accept=".mp3,.wav,.ogg,audio/*"
-              onChange={handleUploadAudioFile}
-              className="hidden"
-            />
-          </div>
-        </div>
-
-        {/* Baris Pencarian & Tambah Link Musik */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              runMusicSearch(searchQuery);
-            }}
-            className="lg:col-span-5 flex items-center gap-1.5 bg-slate-950/70 border border-white/15 rounded-xl px-2.5 py-1.5"
-          >
-            <Search className="w-4 h-4 text-teal-300 shrink-0" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari musik gratis (misal: relax, piano, acoustic, lofi)..."
-              className="w-full bg-transparent text-xs text-white placeholder:text-slate-400 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={searchingMusic}
-              className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer shrink-0"
-            >
-              {searchingMusic ? "Cari..." : "Cari"}
-            </button>
-          </form>
-
-          <div className="lg:col-span-7 flex items-center gap-1.5">
-            <input
-              type="text"
-              value={directAudioUrl}
-              onChange={(e) => setDirectAudioUrl(e.target.value)}
-              placeholder="Tempel link file musik (.mp3 / .ogg / .wav)..."
-              className="flex-1 bg-slate-950/70 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-400 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleAddDirectAudio}
-              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Tambah ke Daftar
-            </button>
-          </div>
-        </div>
-
-        {/* Kontrol Volume & Track Aktif */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-black/25 rounded-xl px-3 py-2 text-xs">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleTogglePlay(selectedTrack)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold cursor-pointer"
-            >
-              {isPlayingAudio ? (
+              {isPlaying ? (
                 <>
                   <Pause className="w-3.5 h-3.5" /> Pause
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5" /> Putar
+                  <Play className="w-3.5 h-3.5" /> Play
                 </>
               )}
             </button>
-            <Volume2 className="w-4 h-4 text-teal-300" />
-            <span className="text-slate-200">
-              Volume: {Math.round(volume * 100)}%
-            </span>
+          )}
+        </div>
+
+        <form onSubmit={handleMusicSearch} className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-teal-300 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-28 accent-teal-400 cursor-pointer"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari lagu/genre gratis atau tempel link open.spotify.com..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-600 text-xs sm:text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
+          <button
+            type="submit"
+            disabled={searching}
+            className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs sm:text-sm font-bold cursor-pointer shrink-0"
+          >
+            {searching ? "Mencari..." : "Cari"}
+          </button>
+        </form>
 
-          <div className="text-teal-200 truncate">
-            Sedang dipilih:{" "}
-            <strong className="text-white">
-              {selectedTrack ? `${selectedTrack.title} — ${selectedTrack.artist}` : "-"}
-            </strong>
+        {spotifyEmbedUrl && (
+          <div className="rounded-xl overflow-hidden border border-slate-700 bg-slate-950">
+            <iframe
+              src={spotifyEmbedUrl}
+              title="Spotify Online Player"
+              className="w-full h-36 sm:h-40"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+            />
           </div>
-        </div>
+        )}
 
-        {/* Daftar Hasil Pencarian / Saluran Musik Gratis */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-          {searchResults.map((track) => {
-            const active = selectedTrack?.id === track.id;
-            return (
-              <div
-                key={track.id}
-                className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 border text-xs ${
-                  active
-                    ? "bg-teal-900/50 border-teal-400/60"
-                    : "bg-white/5 border-white/10 hover:bg-white/10"
-                }`}
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold text-white truncate">
-                    {track.title}
-                  </div>
-                  <div className="text-[11px] text-slate-300 truncate">
-                    {track.artist} · {track.genre} ({track.duration})
-                  </div>
-                </div>
+        {onlineTracks.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+            {onlineTracks.map((trk) => {
+              const selected = activeTrack?.id === trk.id;
+              return (
                 <button
+                  key={trk.id}
                   type="button"
-                  onClick={() => handleTogglePlay(track)}
-                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-semibold cursor-pointer shrink-0 inline-flex items-center gap-1"
+                  onClick={() => setActiveTrack(trk)}
+                  className={`text-left rounded-xl px-3 py-2 border text-xs transition cursor-pointer flex items-center justify-between gap-2 ${
+                    selected
+                      ? "bg-teal-900/60 border-teal-400 text-white"
+                      : "bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-800"
+                  }`}
                 >
-                  {active && isPlayingAudio ? (
-                    <>
-                      <Pause className="w-3 h-3" /> Jeda
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3 h-3" /> Putar
-                    </>
-                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">{trk.title}</div>
+                    <div className="text-[11px] text-slate-300 truncate">
+                      {trk.artist}
+                    </div>
+                  </div>
+                  <Play className="w-3.5 h-3.5 text-teal-300 shrink-0" />
                 </button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
-      {/* ================= BAGIAN 2: CHANNEL VIDEO PENGUMUMAN (ADMIN EDIT, USER SHARE) ================= */}
+      {/* ================= 2. VIDEO PENGUMUMAN (HANYA ADMIN EDIT) + SHARE + KOMENTAR ================= */}
       <section className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div className="flex items-start gap-2.5">
             <Film className="w-5 h-5 text-sky-600 mt-0.5 shrink-0" />
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                {announcement.title}
+                {videoConfig.title}
               </h3>
-              <p className="text-xs text-slate-500">{announcement.subtitle}</p>
+              <p className="text-xs text-slate-500">{videoConfig.subtitle}</p>
             </div>
           </div>
 
-          {/* Kontrol Mode Admin */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {!isAdminMode ? (
-              <>
-                <input
-                  type="password"
-                  value={adminPinInput}
-                  onChange={(e) => setAdminPinInput(e.target.value)}
-                  placeholder="PIN Admin (1234)"
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs w-32"
-                />
-                <button
-                  type="button"
-                  onClick={handleToggleAdmin}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  Mode Admin
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={handleToggleAdmin}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold cursor-pointer"
-              >
-                <Unlock className="w-3.5 h-3.5" />
-                Keluar Mode Admin
-              </button>
-            )}
-          </div>
+          {/* Tombol edit HANYA muncul untuk Admin */}
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => setAdminEditOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold cursor-pointer self-start sm:self-auto"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              {adminEditOpen ? "Tutup Edit Admin" : "Edit Link Video (Admin)"}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium self-start sm:self-auto">
+              <Lock className="w-3.5 h-3.5" /> Diatur oleh Admin
+            </span>
+          )}
         </div>
 
+        {/* Form edit khusus Admin */}
+        {isAdmin && adminEditOpen && (
+          <form
+            onSubmit={handleSaveVideoByAdmin}
+            className="rounded-xl border border-amber-300 bg-amber-50/70 p-3.5 space-y-2.5 text-xs"
+          >
+            <div className="font-bold text-amber-950">
+              Pengaturan Link Video Pengumuman (Khusus Admin)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                placeholder="Judul pengumuman / info / tutorial"
+                className="px-3 py-2 rounded-lg border border-amber-300 bg-white text-slate-900"
+              />
+              <input
+                type="text"
+                value={draftSubtitle}
+                onChange={(e) => setDraftSubtitle(e.target.value)}
+                placeholder="Keterangan singkat"
+                className="px-3 py-2 rounded-lg border border-amber-300 bg-white text-slate-900"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={draftVideoUrl}
+                onChange={(e) => setDraftVideoUrl(e.target.value)}
+                placeholder="Masukkan link video YouTube atau MP4..."
+                className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-slate-900"
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold cursor-pointer shrink-0"
+              >
+                <Save className="w-3.5 h-3.5" /> Simpan Video
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* Pemutar Video */}
-        <div className="rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 aspect-video max-h-[420px] mx-auto w-full flex items-center justify-center">
-          {announcement.uploadedVideoUrl ? (
-            <video
-              src={announcement.uploadedVideoUrl}
-              controls
-              className="w-full h-full object-contain"
-            />
-          ) : youtubeEmbedSrc ? (
+        <div className="rounded-xl overflow-hidden bg-slate-950 aspect-video max-h-[400px] mx-auto w-full flex items-center justify-center">
+          {ytEmbedUrl ? (
             <iframe
-              src={youtubeEmbedSrc}
-              title={announcement.title}
+              src={ytEmbedUrl}
+              title={videoConfig.title}
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
-          ) : announcement.videoUrl ? (
+          ) : videoConfig.videoUrl ? (
             <video
-              src={announcement.videoUrl}
+              src={videoConfig.videoUrl}
               controls
               className="w-full h-full object-contain"
             />
           ) : (
             <div className="text-slate-400 text-xs p-6 text-center">
-              Belum ada video pengumuman terpasang. Admin dapat mengaturnya pada panel edit.
+              Link video pengumuman belum dipasang oleh Admin.
             </div>
           )}
         </div>
 
-        {/* Tombol Share untuk Semua User */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+        {/* Tombol Share ke Medsos di bawah Video */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
             <Share2 className="w-4 h-4 text-sky-600" />
-            <span>Bagikan Pengumuman / Info ke Medsos:</span>
-          </div>
+            Bagikan ke Medsos:
+          </span>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+              href={`https://wa.me/?text=${encodeURIComponent(shareMessage)}`}
               target="_blank"
               rel="noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
             >
               WhatsApp
             </a>
             <a
               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-                shareUrl
+                shareTargetUrl
               )}`}
               target="_blank"
               rel="noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold"
             >
               Facebook
             </a>
             <a
               href={`https://t.me/share/url?url=${encodeURIComponent(
-                shareUrl
-              )}&text=${encodeURIComponent(announcement.title)}`}
+                shareTargetUrl
+              )}&text=${encodeURIComponent(videoConfig.title)}`}
               target="_blank"
               rel="noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold"
+              className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-semibold"
             >
               Telegram
             </a>
             <a
               href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-                shareUrl
+                shareTargetUrl
               )}`}
               target="_blank"
               rel="noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold"
+              className="px-2.5 py-1 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white font-semibold"
             >
               LinkedIn
             </a>
             <button
               type="button"
-              onClick={handleCopyShareLink}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold cursor-pointer"
+              onClick={handleCopyShare}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-semibold cursor-pointer"
             >
-              {copiedLink ? (
+              {copiedShare ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" /> Tersalin
                 </>
@@ -815,124 +659,67 @@ export default function MediaAnnouncementHub({
                 </>
               )}
             </button>
+            {videoConfig.videoUrl && (
+              <a
+                href={videoConfig.videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Buka Link
+              </a>
+            )}
           </div>
         </div>
 
-        {/* Panel Edit Khusus Admin (Tersembunyi bagi User Biasa) */}
-        {isAdminMode && (
-          <div className="rounded-xl border-2 border-amber-300 bg-amber-50/60 p-3.5 space-y-2.5">
-            <div className="text-xs font-bold text-amber-950 flex items-center justify-between">
-              <span>Panel Pengaturan Video &amp; Info (Khusus Admin)</span>
-              {announcement.updatedAt && (
-                <span className="text-[11px] font-normal text-amber-800">
-                  Update terakhir: {announcement.updatedAt}
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.target.value)}
-                placeholder="Judul Channel / Pengumuman"
-                className="px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900"
-              />
-              <input
-                type="text"
-                value={draftSubtitle}
-                onChange={(e) => setDraftSubtitle(e.target.value)}
-                placeholder="Keterangan singkat pengumuman / promo"
-                className="px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <input
-                type="text"
-                value={draftVideoUrl}
-                onChange={(e) => setDraftVideoUrl(e.target.value)}
-                placeholder="Link video YouTube / MP4 (contoh: https://www.youtube.com/watch?v=...)"
-                className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900"
-              />
-              <button
-                type="button"
-                onClick={() => videoFileInputRef.current?.click()}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white hover:bg-amber-100 border border-amber-300 text-slate-800 text-xs font-semibold cursor-pointer shrink-0"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                Upload Video
-              </button>
-              <input
-                ref={videoFileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={handleUploadVideoFile}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={handleSaveAnnouncement}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold cursor-pointer shrink-0"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Simpan
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ================= BAGIAN 3: KOMENTAR & OBROLAN LANGSUNG REALTIME ================= */}
-        <div className="border-t border-slate-200 pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        {/* Komentar & Obrolan Realtime di bawah Video */}
+        <div className="border-t border-slate-200 pt-3.5 space-y-2.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
               <MessageSquare className="w-4 h-4 text-teal-600" />
-              <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                Komentar &amp; Obrolan Langsung Pengumuman / Info
-              </h4>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Realtime ({comments.length} pesan)
+              Komentar &amp; Obrolan Langsung ({comments.length})
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-700">
+              Realtime
             </span>
           </div>
 
-          {/* Daftar Komentar / Obrolan */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 max-h-64 overflow-y-auto space-y-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-56 overflow-y-auto space-y-2 text-xs">
             {comments.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-4">
-                Belum ada komentar. Mulai obrolan langsung terkait pengumuman, info, atau promo di atas.
+              <p className="text-slate-400 text-center py-3">
+                Belum ada komentar. Silakan tulis komentar atau ngobrol langsung di sini.
               </p>
             ) : (
-              comments.map((item) => (
+              comments.map((c) => (
                 <div
-                  key={item.id}
-                  className="bg-white border border-slate-200/90 rounded-xl px-3 py-2 text-xs shadow-2xs flex items-start justify-between gap-2"
+                  key={c.id}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-start justify-between gap-2"
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-slate-900">
-                        {item.author}
+                        {c.author}
                       </span>
-                      {item.isAdmin && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                      {c.isAdmin && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
                           Admin
                         </span>
                       )}
                       <span className="text-[10px] text-slate-400">
-                        {item.timeLabel}
+                        {c.timeLabel}
                       </span>
                     </div>
                     <p className="text-slate-700 mt-0.5 whitespace-pre-wrap break-words">
-                      {item.text}
+                      {c.text}
                     </p>
                   </div>
-
-                  {isAdminMode && (
+                  {isAdmin && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteComment(item.id)}
-                      className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer shrink-0"
+                      onClick={() =>
+                        setComments((prev) => prev.filter((x) => x.id !== c.id))
+                      }
+                      className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
                       title="Hapus komentar"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -941,34 +728,32 @@ export default function MediaAnnouncementHub({
                 </div>
               ))
             )}
-            <div ref={chatEndRef} />
+            <div ref={chatBottomRef} />
           </div>
 
-          {/* Form Kirim Komentar / Chat Langsung */}
           <form
             onSubmit={handleSendComment}
-            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+            className="flex flex-col sm:flex-row gap-2 text-xs"
           >
             <input
               type="text"
-              value={senderName}
-              onChange={(e) => setSenderName(e.target.value)}
-              placeholder="Nama Anda (misal: Yuda / HRD)"
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 sm:w-48 shrink-0"
+              value={commenterName}
+              onChange={(e) => setCommenterName(e.target.value)}
+              placeholder="Nama Anda"
+              className="px-3 py-2 rounded-xl border border-slate-300 bg-white sm:w-44"
             />
             <input
               type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Tulis komentar atau ngobrol langsung di sini..."
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Tulis komentar atau obrolan langsung di bawah video..."
+              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-white"
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold cursor-pointer shrink-0"
             >
-              <Send className="w-3.5 h-3.5" />
-              Kirim
+              <Send className="w-3.5 h-3.5" /> Kirim
             </button>
           </form>
         </div>
