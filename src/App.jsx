@@ -10,6 +10,7 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import TicketFormModal from "./TicketFormModal";
 import FormPreviewModal from "./FormPreviewModal";
 import SettingsModal from "./SettingsModal";
 import MediaAnnouncementHub from "./MediaAnnouncementHub";
@@ -29,7 +30,6 @@ import {
   FileSpreadsheet,
   MessageSquare,
   Mail,
-  Send,
   FileCheck2,
   Building2,
   SlidersHorizontal,
@@ -37,7 +37,6 @@ import {
   RotateCcw,
   Settings,
   Printer,
-  ImagePlus,
   Trash2,
   Shield,
   Layers,
@@ -486,25 +485,9 @@ export default function App() {
   const [filterPriority, setFilterPriority] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
 
-  // Buat / Edit Form Request WO
+  // Buat / Edit Form Request WO (terhubung ke TicketFormModal)
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState(null);
-  const [formData, setFormData] = useState({
-    department: "PRODUKSI",
-    requesterName: "",
-    requesterNip: "",
-    section: "",
-    jobType: "Repair",
-    reqSupervisor: "",
-    reqChief: "",
-    reqManager: "",
-    reqGm: "",
-    category: "Mechanical",
-    lineLocation: "",
-    photoDataUrl: "",
-    description: "",
-  });
-  const [formError, setFormError] = useState("");
 
   // Kelola WO Admin
   const [manageTicket, setManageTicket] = useState(null);
@@ -791,9 +774,7 @@ export default function App() {
   ]);
 
   const openCreateModal = () => {
-    setFormError("");
-    setEditingTicket(null);
-    setFormData({
+    setEditingTicket({
       department:
         session?.role === "user"
           ? session.department
@@ -815,23 +796,7 @@ export default function App() {
   };
 
   const openEditUserTicket = (ticket) => {
-    setFormError("");
     setEditingTicket(ticket);
-    setFormData({
-      department: ticket.department || "PRODUKSI",
-      requesterName: ticket.requesterName || "",
-      requesterNip: ticket.requesterNip || "",
-      section: ticket.section || "",
-      jobType: ticket.jobType || "Repair",
-      reqSupervisor: ticket.reqSupervisor || "",
-      reqChief: ticket.reqChief || "",
-      reqManager: ticket.reqManager || "",
-      reqGm: ticket.reqGm || "",
-      category: ticket.category || "Mechanical",
-      lineLocation: ticket.lineLocation || "",
-      photoDataUrl: ticket.photoDataUrl || "",
-      description: ticket.description || "",
-    });
     setIsCreateOpen(true);
   };
 
@@ -850,69 +815,44 @@ export default function App() {
     }
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const maxW = 540;
-        const scale = Math.min(1, maxW / img.width);
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setFormData((prev) => ({
-          ...prev,
-          photoDataUrl: canvas.toDataURL("image/jpeg", 0.75),
-        }));
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCreateSubmit = async (e) => {
-    e.preventDefault();
-    setFormError("");
-
-    if (!formData.requesterName.trim() || !formData.description.trim()) {
-      setFormError(
-        "Lengkapi Nama Yang Meminta dan Keterangan Masalah / Permintaan."
-      );
+  const handleTicketFormSave = async (payload) => {
+    if (!payload.requesterName?.trim() || !payload.description?.trim()) {
+      alert("Lengkapi Nama Yang Meminta dan Keterangan Masalah / Permintaan.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const cleanDesc = formData.description.trim();
+      const cleanDesc = payload.description.trim();
       const summaryTitle =
         cleanDesc.length > 75 ? `${cleanDesc.slice(0, 75)}...` : cleanDesc;
+      const isExistingTicket = Boolean(editingTicket?.id);
 
-      if (editingTicket) {
+      if (isExistingTicket) {
         const updatedFields = {
-          department: formData.department,
-          requesterName: formData.requesterName.trim(),
-          requesterNip: formData.requesterNip.trim(),
-          section: formData.section.trim() || formData.lineLocation.trim(),
-          jobType: formData.jobType,
-          reqSupervisor: formData.reqSupervisor.trim(),
-          reqChief: formData.reqChief.trim(),
-          reqManager: formData.reqManager.trim(),
-          reqGm: formData.reqGm.trim(),
+          department: payload.department || "PRODUKSI",
+          requesterName: payload.requesterName.trim(),
+          requesterNip: (payload.requesterNip || "").trim(),
+          section: (payload.section || payload.lineLocation || "").trim(),
+          jobType: payload.jobType || "Repair",
+          reqSupervisor: (payload.reqSupervisor || "").trim(),
+          reqChief: (payload.reqChief || "").trim(),
+          reqManager: (payload.reqManager || "").trim(),
+          reqGm: (payload.reqGm || "").trim(),
           divisionHeadSignedBy:
-            formData.reqGm.trim() ||
-            formData.reqManager.trim() ||
-            formData.reqChief.trim() ||
-            formData.reqSupervisor.trim() ||
+            (payload.reqGm || "").trim() ||
+            (payload.reqManager || "").trim() ||
+            (payload.reqChief || "").trim() ||
+            (payload.reqSupervisor || "").trim() ||
             "TTD Manual Pada Form Cetak",
           title: summaryTitle,
-          category: formData.category,
-          lineLocation:
-            formData.lineLocation.trim() || formData.section.trim() || "-",
-          photoDataUrl: formData.photoDataUrl || "",
+          category: payload.category || "Mechanical",
+          lineLocation: (
+            payload.lineLocation ||
+            payload.section ||
+            "-"
+          ).trim(),
+          photoDataUrl: payload.photoDataUrl || "",
           description: cleanDesc,
         };
 
@@ -954,29 +894,32 @@ export default function App() {
         createdAt: stamp,
         requestDate: dateStr,
         completedAt: "",
-        department: formData.department,
-        requesterName: formData.requesterName.trim(),
-        requesterNip: formData.requesterNip.trim(),
-        section: formData.section.trim() || formData.lineLocation.trim(),
-        jobType: formData.jobType,
-        reqSupervisor: formData.reqSupervisor.trim(),
-        reqChief: formData.reqChief.trim(),
-        reqManager: formData.reqManager.trim(),
-        reqGm: formData.reqGm.trim(),
+        department: payload.department || "PRODUKSI",
+        requesterName: payload.requesterName.trim(),
+        requesterNip: (payload.requesterNip || "").trim(),
+        section: (payload.section || payload.lineLocation || "").trim(),
+        jobType: payload.jobType || "Repair",
+        reqSupervisor: (payload.reqSupervisor || "").trim(),
+        reqChief: (payload.reqChief || "").trim(),
+        reqManager: (payload.reqManager || "").trim(),
+        reqGm: (payload.reqGm || "").trim(),
         writtenFormNo: ticketId,
         divisionHeadSignedBy:
-          formData.reqGm.trim() ||
-          formData.reqManager.trim() ||
-          formData.reqChief.trim() ||
-          formData.reqSupervisor.trim() ||
+          (payload.reqGm || "").trim() ||
+          (payload.reqManager || "").trim() ||
+          (payload.reqChief || "").trim() ||
+          (payload.reqSupervisor || "").trim() ||
           "TTD Manual Pada Form Cetak",
         handoverStatus: "Menunggu Berkas TTD Manual",
         title: summaryTitle,
-        category: formData.category,
-        lineLocation:
-          formData.lineLocation.trim() || formData.section.trim() || "-",
-        layoutNote: "",
-        photoDataUrl: formData.photoDataUrl || "",
+        category: payload.category || "Mechanical",
+        lineLocation: (
+          payload.lineLocation ||
+          payload.section ||
+          "-"
+        ).trim(),
+        layoutNote: payload.layoutNote || "",
+        photoDataUrl: payload.photoDataUrl || "",
         description: cleanDesc,
         priority: "P3",
         approvedByManagement: "",
@@ -1002,6 +945,7 @@ export default function App() {
       await setDoc(doc(db, COLLECTION_NAME, ticketId), newTicket);
 
       setIsCreateOpen(false);
+      setEditingTicket(null);
       setActiveTab("queue");
       setPreviewTicket(newTicket);
       setNotifBanner({
@@ -1011,7 +955,7 @@ export default function App() {
       });
     } catch (err) {
       console.error("Gagal menyimpan WO:", err);
-      setFormError(
+      alert(
         "Gagal menyimpan ke server Firebase. Periksa koneksi internet Anda lalu coba lagi."
       );
     } finally {
@@ -1642,7 +1586,7 @@ export default function App() {
           <MediaAnnouncementHub
             db={db}
             appId="wo-engineering"
-            currentUserName={formData?.requesterName || session?.name || ""}
+            currentUserName={editingTicket?.requesterName || session?.name || ""}
             isAdmin={session?.role === "admin"}
             externalVideoUrl={settings.videoChannelUrl || ""}
             externalBannerText={settings.announcementText || ""}
@@ -1925,7 +1869,9 @@ export default function App() {
 
               {settings.showWorkflowHint !== false && (
                 <p className="text-[11px] sm:text-xs text-slate-600">
-                  User bisa <strong>Edit / Revisi</strong> atau <strong>Tarik Ulang</strong> form kapan saja bila ada kesalahan.
+                  User bisa <strong>Edit / Revisi</strong> atau{" "}
+                  <strong>Tarik Ulang</strong> form kapan saja bila ada
+                  kesalahan.
                 </p>
               )}
             </div>
@@ -2265,321 +2211,14 @@ export default function App() {
       )}
 
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs overflow-y-auto flex items-start justify-center p-2 sm:p-4">
-          <div className="m-auto bg-white/96 backdrop-blur-xl rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 my-4 sm:my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5 mb-4">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  {editingTicket
-                    ? `Edit / Revisi Form — ${editingTicket.id}`
-                    : `Surat Permintaan Pekerjaan (${settings.docNumber})`}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {editingTicket
-                    ? "Perbarui data yang salah lalu simpan revisi form."
-                    : "No. Form otomatis berurutan sesuai standar. Isi yang meminta, departemen, TTD sampai Division Head, foto & keterangan."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateOpen(false);
-                  setEditingTicket(null);
-                }}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleCreateSubmit}
-              className="space-y-4 max-h-[76vh] overflow-y-auto pr-1"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-teal-50/60 p-3.5 rounded-xl border border-teal-200/70">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Yang Meminta (Name/성명) *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.requesterName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, requesterName: e.target.value })
-                    }
-                    placeholder="Nama yang meminta"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Departement / 부서 *
-                  </label>
-                  <select
-                    value={formData.department}
-                    disabled={session.role === "user"}
-                    onChange={(e) =>
-                      setFormData({ ...formData, department: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white disabled:bg-slate-100"
-                  >
-                    {settings.departments.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    NIP / 사번
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.requesterNip}
-                    onChange={(e) =>
-                      setFormData({ ...formData, requesterNip: e.target.value })
-                    }
-                    placeholder="NIP pemohon"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Section / Lokasi Line
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.section}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        section: e.target.value,
-                        lineLocation: e.target.value,
-                      })
-                    }
-                    placeholder="Contoh: Line 3 / Cutting"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl space-y-2">
-                <div className="text-xs font-bold text-emerald-950">
-                  Persetujuan / TTD Sampai Division Head Terkait (Isi Nama Pejabat Terkait)
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      SUPERVISOR
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.reqSupervisor}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          reqSupervisor: e.target.value,
-                        })
-                      }
-                      placeholder="Nama Supervisor"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      CHIEF
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.reqChief}
-                      onChange={(e) =>
-                        setFormData({ ...formData, reqChief: e.target.value })
-                      }
-                      placeholder="Nama Chief"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      MANAGER
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.reqManager}
-                      onChange={(e) =>
-                        setFormData({ ...formData, reqManager: e.target.value })
-                      }
-                      placeholder="Nama Manager"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      GM / DIVISION HEAD
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.reqGm}
-                      onChange={(e) =>
-                        setFormData({ ...formData, reqGm: e.target.value })
-                      }
-                      placeholder="Nama GM / Head"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Jenis Pekerjaan / 작업 유형
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { key: "Repair", label: "Repair / 수리" },
-                      {
-                        key: "Remove & Install",
-                        label: "Remove & Install",
-                      },
-                      { key: "Service", label: "Service / 점검" },
-                      { key: "Trouble", label: "Trouble / 장애" },
-                    ].map((jt) => (
-                      <button
-                        key={jt.key}
-                        type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, jobType: jt.key })
-                        }
-                        className={`p-2 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
-                          formData.jobType === jt.key
-                            ? `${activeTheme.accentBtn} text-white border-transparent`
-                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        {jt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Kategori Sistem
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
-                  >
-                    {settings.categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Lampiran Foto Masalah / Permintaan
-                  </label>
-                  <label className="flex flex-col items-center justify-center gap-1.5 p-4 border-2 border-dashed border-slate-300 rounded-xl text-xs text-slate-600 hover:bg-slate-50 cursor-pointer min-h-[112px]">
-                    <ImagePlus className="w-6 h-6 text-teal-600" />
-                    <span className="font-semibold text-center">
-                      {formData.photoDataUrl
-                        ? "Ganti Foto Masalah / Permintaan"
-                        : "Klik untuk Upload Foto Masalah / Permintaan"}
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      JPG, PNG, WEBP (Otomatis masuk ke form cetak)
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {formData.photoDataUrl && (
-                    <div className="relative rounded-xl border border-slate-200 overflow-hidden bg-slate-50 p-2">
-                      <img
-                        src={formData.photoDataUrl}
-                        alt="Preview Foto Masalah"
-                        className="max-h-36 mx-auto object-contain rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, photoDataUrl: "" })
-                        }
-                        className="mt-2 w-full py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 cursor-pointer"
-                      >
-                        Hapus Foto
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Keterangan Masalah atau Permintaan *
-                  </label>
-                  <textarea
-                    rows={6}
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    placeholder="Tuliskan keterangan masalah atau permintaan pekerjaan secara jelas..."
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"
-                  />
-                </div>
-              </div>
-
-              {formError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
-                  {formError}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setEditingTicket(null);
-                  }}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl ${activeTheme.accentBtn} text-white text-sm font-semibold cursor-pointer disabled:opacity-60`}
-                >
-                  <Send className="w-4 h-4" />
-                  {isSubmitting
-                    ? "Menyimpan..."
-                    : editingTicket
-                      ? "Simpan Revisi Form"
-                      : "Terbitkan Form & Preview"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <TicketFormModal
+          initialTicket={editingTicket}
+          onSave={handleTicketFormSave}
+          onClose={() => {
+            setIsCreateOpen(false);
+            setEditingTicket(null);
+          }}
+        />
       )}
 
       {manageTicket && session.role === "admin" && (
@@ -3217,5 +2856,4 @@ export default function App() {
       )}
     </div>
   );
-  
 }
